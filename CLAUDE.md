@@ -24,6 +24,7 @@ Key routing rules:
 - Code review/diff check → invoke /review
 - Visual polish → invoke /design-review
 - Ship/deploy/PR → invoke /ship or /land-and-deploy
+- Update or audit public docs → invoke /pub-docs (runs privacy check against .private/blocklist.txt)
 - Save progress → invoke /context-save
 - Resume context → invoke /context-restore
 
