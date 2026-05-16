@@ -5,6 +5,16 @@ libs = ["lib"]
 test = "test"
 script = "script"
 evm_version = "london"
+optimizer = true
+optimizer_runs = 200
+
+remappings = [
+    "@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/",
+    "@openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/",
+    "@onchain-id/solidity/=lib/solidity/",
+    "@T-REX/=lib/T-REX/contracts/",
+    "forge-std/=lib/forge-std/src/",
+]
 
 [profile.default.fuzz]
 runs = 256

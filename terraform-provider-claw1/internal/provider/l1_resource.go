@@ -550,8 +550,8 @@ func verifyTxAllowListAdmin(ctx context.Context, rpcURL, adminAddr string) error
 	if err != nil {
 		return err
 	}
-	if role != 3 {
-		return fmt.Errorf("expected %s to have TxAllowList admin role 3, got %d", adminAddr, role)
+	if role < 2 {
+		return fmt.Errorf("expected %s to have TxAllowList admin role (≥2), got %d", adminAddr, role)
 	}
 	return nil
 }
