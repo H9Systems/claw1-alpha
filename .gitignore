@@ -39,3 +39,4 @@ openclaw-sidecar/.venv/
 # OS
 .DS_Store
 .gstack/
+cli/claw1
