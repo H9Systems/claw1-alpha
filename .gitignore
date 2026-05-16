@@ -1,3 +1,6 @@
+# Private notes (gitignored, local only)
+.private/
+
 # Network artifacts — .claw1/network.json contains funded deployer private key
 .claw1/
 wallet/
