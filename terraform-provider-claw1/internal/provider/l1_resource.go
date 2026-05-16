@@ -29,6 +29,10 @@ var (
 	rpcRe = regexp.MustCompile(`(?:RPC Endpoint|RPC URL):\s+(http://127\.0\.0\.1:\d+/ext/bc/[^\s|]+/rpc)`)
 	// CLI v1.9.6 shows the ewoq key in a table without 0x prefix.
 	keyRe = regexp.MustCompile(`ewoq\s+\|\s+([a-fA-F0-9]{64})`)
+	// SubnetID appears in deploy output as "Subnet ID: <CB58>".
+	subnetIdRe = regexp.MustCompile(`(?:Subnet ID|SubnetID):\s+([1-9A-HJ-NP-Za-km-z]+)`)
+	// BlockchainID is extracted from the RPC URL path segment.
+	blockchainIdFromURL = regexp.MustCompile(`/ext/bc/([^/]+)/rpc`)
 )
 
 type l1Resource struct {
@@ -506,7 +510,7 @@ func (r *l1Resource) createL1(ctx context.Context, plan *l1ResourceModel, name s
 		return fmt.Errorf("avalanche blockchain deploy: %w\n%s", err, deployOut)
 	}
 
-	rpcURL, deployerKey, err := parseDeployOutput(string(deployOut))
+	rpcURL, deployerKey, blockchainID, subnetID, err := parseDeployOutput(string(deployOut))
 	if err != nil {
 		return fmt.Errorf("parse deploy output: %w\nstdout:\n%s", err, deployOut)
 	}
@@ -515,7 +519,7 @@ func (r *l1Resource) createL1(ctx context.Context, plan *l1ResourceModel, name s
 		return fmt.Errorf("verify TxAllowList admin: %w", err)
 	}
 
-	return r.writeNetworkJSON(name, chainID, rpcURL, deployerKey)
+	return r.writeNetworkJSON(name, chainID, rpcURL, deployerKey, blockchainID, subnetID)
 }
 
 // networkFlag returns the --local / --devnet / --testnet / --mainnet / --cluster / --endpoint flag.
@@ -616,7 +620,7 @@ func encodeReadAllowListCall(addr string) (string, error) {
 	return "0xeb54dae1" + strings.Repeat("0", 24) + addr, nil
 }
 
-func parseDeployOutput(output string) (rpcURL, deployerKey string, err error) {
+func parseDeployOutput(output string) (rpcURL, deployerKey, blockchainID, subnetID string, err error) {
 	if m := rpcRe.FindStringSubmatch(output); len(m) == 2 {
 		rpcURL = m[1]
 	}
@@ -624,12 +628,20 @@ func parseDeployOutput(output string) (rpcURL, deployerKey string, err error) {
 		deployerKey = m[1]
 	}
 	if rpcURL == "" || deployerKey == "" {
-		return "", "", fmt.Errorf("could not parse RPC URL or private key from output")
+		return "", "", "", "", fmt.Errorf("could not parse RPC URL or private key from output")
 	}
-	return rpcURL, deployerKey, nil
+	// BlockchainID is in the RPC URL path; this is always available if rpcURL parsed.
+	if m := blockchainIdFromURL.FindStringSubmatch(rpcURL); len(m) == 2 {
+		blockchainID = m[1]
+	}
+	// SubnetID is a best-effort parse from output text.
+	if m := subnetIdRe.FindStringSubmatch(output); len(m) == 2 {
+		subnetID = m[1]
+	}
+	return rpcURL, deployerKey, blockchainID, subnetID, nil
 }
 
-func (r *l1Resource) writeNetworkJSON(name string, chainID int64, rpcURL, deployerKey string) error {
+func (r *l1Resource) writeNetworkJSON(name string, chainID int64, rpcURL, deployerKey, blockchainID, subnetID string) error {
 	dir := filepath.Join(r.cfg.DataDir, name)
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
@@ -638,6 +650,8 @@ func (r *l1Resource) writeNetworkJSON(name string, chainID int64, rpcURL, deploy
 	net := networkJSON{
 		Name:            name,
 		ChainID:         chainID,
+		SubnetID:        subnetID,
+		BlockchainID:    blockchainID,
 		RPCURL:          rpcURL,
 		PlatformRPCURL:  "http://127.0.0.1:9650",
 		DeployerPrivKey: deployerKey,

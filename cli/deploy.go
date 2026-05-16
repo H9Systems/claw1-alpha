@@ -2,16 +2,25 @@ package main
 
 import (
 	"bufio"
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"text/template"
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
+)
+
+var (
+	ociDeployedToRe  = regexp.MustCompile(`Deployed to:\s+(0x[a-fA-F0-9]{40})`)
+	ociRemotePortRe  = regexp.MustCompile(`^http://127\.0\.0\.1:(\d+)/`)
+	ociRPCPathRe     = regexp.MustCompile(`^http://127\.0\.0\.1:\d+/(ext/.+)$`)
 )
 
 // ── Messages ─────────────────────────────────────────────────────────────────
@@ -58,11 +67,15 @@ func newDeployModel(cfg deployConfig) deployModel {
 		{name: "Bootstrap Avalanche L1"},
 		{name: "Deploy compliance contracts"},
 	}
+	if cfg.target == targetOCI && cfg.enableICTT {
+		steps = append(steps, deployStep{name: "Enable ICTT bridge"})
+	}
 	if cfg.target == targetLocal {
 		steps = []deployStep{
 			{name: "Build Terraform provider"},
 			{name: "Deploy Avalanche L1"},
 			{name: "Deploy compliance contracts"},
+			{name: "Deploy ERC-3643 suite"},
 		}
 	}
 	return deployModel{
@@ -228,26 +241,361 @@ func (m *deployModel) runOCI() {
 		close(m.logCh)
 		return
 	}
-	// Watch for bootstrap complete to advance step
-	go func() {
-		// terraform apply runs next; we watch logs for L1 ready signal
-	}()
 	if err := m.runCmd(tfDir, "terraform", "apply", "-auto-approve", "-input=false"); err != nil {
 		m.logCh <- "[terraform] apply failed: " + err.Error()
 		close(m.logCh)
 		return
 	}
 	m.advCh <- 2 // L1 done (bootstrap ran inside terraform apply)
-	m.advCh <- 3 // contracts
 
-	// Step 3: contracts via run.sh --oci
-	if err := m.runCmd(m.cfg.repoRoot, "bash", "run.sh", "--oci"); err != nil {
-		m.logCh <- "[run.sh] contract deploy failed: " + err.Error()
+	// Step 3: deploy contracts into the OCI L1 via SSH tunnel
+	m.advCh <- 3
+	tunnel, activeRPC, err := m.openOCITunnel(tfDir)
+	if err != nil {
+		m.logCh <- "[oci] tunnel: " + err.Error()
+		close(m.logCh)
+		return
+	}
+	defer tunnel.Process.Kill()
+
+	if err := m.deployOCIContracts(activeRPC); err != nil {
+		m.logCh <- "[oci] contracts: " + err.Error()
 		close(m.logCh)
 		return
 	}
 
+	// Step 4 (optional): ICTT bridge
+	if m.cfg.enableICTT {
+		m.advCh <- 4
+		if err := m.deployOCIICTT(activeRPC); err != nil {
+			m.logCh <- "[ictt] " + err.Error()
+			// non-fatal: log and continue
+		}
+	}
+
 	close(m.logCh)
+}
+
+// openOCITunnel reads the OCI terraform outputs, kills any existing tunnel on
+// port 54320, opens a new SSH tunnel, waits for the RPC to be reachable, and
+// returns the tunnel process (caller must Kill()) and the active RPC URL.
+func (m *deployModel) openOCITunnel(tfDir string) (*exec.Cmd, string, error) {
+	home, _ := os.UserHomeDir()
+	netPath := filepath.Join(home, ".claw1", "claw1demobank-oci", "network.json")
+
+	data, err := os.ReadFile(netPath)
+	if err != nil {
+		return nil, "", fmt.Errorf("read network.json: %w (run terraform apply first)", err)
+	}
+	var net struct {
+		RPCURL string `json:"rpcUrl"`
+	}
+	if err := json.Unmarshal(data, &net); err != nil {
+		return nil, "", fmt.Errorf("parse network.json: %w", err)
+	}
+
+	mPort := ociRemotePortRe.FindStringSubmatch(net.RPCURL)
+	if len(mPort) != 2 {
+		return nil, "", fmt.Errorf("could not parse port from rpcUrl: %s", net.RPCURL)
+	}
+	mPath := ociRPCPathRe.FindStringSubmatch(net.RPCURL)
+	if len(mPath) != 2 {
+		return nil, "", fmt.Errorf("could not parse path from rpcUrl: %s", net.RPCURL)
+	}
+	remotePort := mPort[1]
+	activeRPC := "http://127.0.0.1:54320/" + mPath[1]
+
+	ociIP, err := m.tfOutput(tfDir, "oci_vm_ip")
+	if err != nil {
+		return nil, "", fmt.Errorf("terraform output oci_vm_ip: %w", err)
+	}
+	sshKey, err := m.tfOutput(tfDir, "ssh_private_key_path")
+	if err != nil {
+		sshKey = filepath.Join(home, ".ssh", "id_ed25519")
+	}
+
+	// Kill any stale tunnel
+	exec.Command("pkill", "-f", "ssh.*54320").Run() //nolint:errcheck
+	time.Sleep(500 * time.Millisecond)
+
+	tunnel := exec.Command("ssh",
+		"-N",
+		"-o", "StrictHostKeyChecking=no",
+		"-i", sshKey,
+		"-L", fmt.Sprintf("54320:127.0.0.1:%s", remotePort),
+		fmt.Sprintf("ubuntu@%s", ociIP),
+	)
+	if err := tunnel.Start(); err != nil {
+		return nil, "", fmt.Errorf("ssh tunnel start: %w", err)
+	}
+	m.logCh <- fmt.Sprintf("[oci] tunnel: localhost:54320 -> %s:%s", ociIP, remotePort)
+
+	// Wait up to 30s for the RPC to respond
+	deadline := time.Now().Add(30 * time.Second)
+	for time.Now().Before(deadline) {
+		resp, err := http.Post(activeRPC, "application/json",
+			strings.NewReader(`{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}`))
+		if err == nil && resp.StatusCode == 200 {
+			resp.Body.Close()
+			m.logCh <- "[oci] RPC ready at " + activeRPC
+			return tunnel, activeRPC, nil
+		}
+		if resp != nil {
+			resp.Body.Close()
+		}
+		time.Sleep(2 * time.Second)
+	}
+	tunnel.Process.Kill()
+	return nil, "", fmt.Errorf("RPC at %s did not respond within 30s", activeRPC)
+}
+
+// deployOCIContracts deploys ComplianceRegistry, DividendDistributor, and the
+// ERC-3643 suite onto the L1 reachable at activeRPC, then updates the local
+// OCI network.json with contract addresses and tunnel metadata.
+func (m *deployModel) deployOCIContracts(activeRPC string) error {
+	home, _ := os.UserHomeDir()
+	netPath := filepath.Join(home, ".claw1", "claw1demobank-oci", "network.json")
+	contractsDir := filepath.Join(m.cfg.repoRoot, "contracts")
+	tfDir := filepath.Join(m.cfg.repoRoot, "terraform", "oci")
+
+	data, err := os.ReadFile(netPath)
+	if err != nil {
+		return fmt.Errorf("read network.json: %w", err)
+	}
+	var net ociNetworkJSON
+	if err := json.Unmarshal(data, &net); err != nil {
+		return fmt.Errorf("parse network.json: %w", err)
+	}
+
+	deployer := net.DeployerPrivateKey
+	chainID := fmt.Sprintf("%d", net.ChainID)
+	const ewoqAddr = "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"
+	keyEnv := "FOUNDRY_ETH_PRIVATE_KEY=" + deployer
+
+	// ComplianceRegistry
+	m.logCh <- "[forge] deploying ComplianceRegistry..."
+	crOut, err := m.captureForge(contractsDir, []string{keyEnv},
+		"create", "src/ComplianceRegistry.sol:ComplianceRegistry",
+		"--root", contractsDir,
+		"--rpc-url", activeRPC,
+		"--broadcast",
+		"--constructor-args", chainID, ewoqAddr,
+		"0x0000000000000000000000000000000000000000", "0", "demo",
+	)
+	if err != nil {
+		return fmt.Errorf("ComplianceRegistry: %w", err)
+	}
+	crAddr := parseDeployedTo(crOut)
+	if crAddr == "" {
+		return fmt.Errorf("could not parse ComplianceRegistry address")
+	}
+	m.logCh <- "[forge] ComplianceRegistry: " + crAddr
+
+	// DividendDistributor
+	m.logCh <- "[forge] deploying DividendDistributor..."
+	ddOut, err := m.captureForge(contractsDir, []string{keyEnv},
+		"create", "src/DividendDistributor.sol:DividendDistributor",
+		"--root", contractsDir,
+		"--rpc-url", activeRPC,
+		"--broadcast",
+		"--constructor-args", "0x0000000000000000000000000000000000000000", "0",
+	)
+	if err != nil {
+		return fmt.Errorf("DividendDistributor: %w", err)
+	}
+	ddAddr := parseDeployedTo(ddOut)
+	if ddAddr == "" {
+		return fmt.Errorf("could not parse DividendDistributor address")
+	}
+	m.logCh <- "[forge] DividendDistributor: " + ddAddr
+
+	// ERC-3643 suite
+	m.logCh <- "[forge] deploying ERC-3643 (T-REX) suite..."
+	erc3643Env := []string{
+		"DEPLOYER_PRIVATE_KEY=" + deployer,
+		"DEMO_INVESTOR_ADDRESS=" + ewoqAddr,
+	}
+	_, err = m.captureForge(contractsDir, erc3643Env,
+		"script", "script/DeployERC3643.s.sol:DeployERC3643",
+		"--root", contractsDir,
+		"--rpc-url", activeRPC,
+		"--broadcast",
+	)
+	if err != nil {
+		m.logCh <- "[forge] ERC-3643 warning: " + err.Error()
+	}
+
+	// Update local network.json
+	ociIP, _ := m.tfOutput(tfDir, "oci_vm_ip")
+	now := time.Now().UTC().Format(time.RFC3339)
+	net.RPCURL = activeRPC
+	if net.OCI == nil {
+		net.OCI = &ociNetMeta{}
+	}
+	net.OCI.RemoteRPCURL = data2rpcURL(data)
+	net.OCI.VMIP = ociIP
+	net.Contracts = []ociContract{
+		{Name: "ComplianceRegistry", Address: crAddr, DeployedAt: now},
+		{Name: "DividendDistributor", Address: ddAddr, DeployedAt: now},
+	}
+	updated, err := json.MarshalIndent(net, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := netPath + ".tmp"
+	if err := os.WriteFile(tmp, updated, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, netPath)
+}
+
+// deployOCIICTT runs the ICTT bridge deploy script if the lib is installed.
+func (m *deployModel) deployOCIICTT(activeRPC string) error {
+	icttLib := filepath.Join(m.cfg.repoRoot, "contracts", "lib", "avalanche-interchain-token-transfer")
+	if _, err := os.Stat(icttLib); err != nil {
+		m.logCh <- "[ictt] lib not installed — run scripts/ictt-setup.sh first"
+		return nil
+	}
+
+	home, _ := os.UserHomeDir()
+	netPath := filepath.Join(home, ".claw1", "claw1demobank-oci", "network.json")
+	data, err := os.ReadFile(netPath)
+	if err != nil {
+		return fmt.Errorf("read network.json: %w", err)
+	}
+	var net struct {
+		DeployerPrivateKey string `json:"deployerPrivateKey"`
+		BlockchainID       string `json:"blockchainId"`
+	}
+	if err := json.Unmarshal(data, &net); err != nil {
+		return fmt.Errorf("parse network.json: %w", err)
+	}
+
+	// Fuji Teleporter Registry (canonical). L1 also needs its own registry
+	// once Teleporter is deployed there — for now use the same address as a
+	// placeholder and let the operator correct via L1_TELEPORTER_REGISTRY env.
+	const fujiTeleporterRegistry = "0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228"
+	const fujicChainRPC = "https://api.avax-test.network/ext/bc/C/rpc"
+	// Fuji C-chain blockchainID (bytes32)
+	const fujiCChainID = "0x7fc93d85c6d62be589232824d4c06ca2f89b8800dc83c98a804fcddabb3ae2d5"
+
+	contractsDir := filepath.Join(m.cfg.repoRoot, "contracts")
+	env := []string{
+		"DEPLOYER_PRIVATE_KEY=" + net.DeployerPrivateKey,
+		"C_CHAIN_RPC_URL=" + fujicChainRPC,
+		"C_CHAIN_BLOCKCHAIN_ID=" + fujiCChainID,
+		"L1_RPC_URL=" + activeRPC,
+		"L1_TELEPORTER_REGISTRY=" + fujiTeleporterRegistry,
+		"C_CHAIN_TELEPORTER_REGISTRY=" + fujiTeleporterRegistry,
+	}
+	m.logCh <- "[ictt] deploying TokenHome (C-chain) + TokenRemote (L1)..."
+	out, err := m.captureForge(contractsDir, env,
+		"script", "script/DeployICTT.s.sol:DeployICTT",
+		"--root", contractsDir,
+		"--multi",   // broadcast on multiple forks
+		"--broadcast",
+	)
+	if err != nil {
+		return fmt.Errorf("forge script: %w", err)
+	}
+	m.logCh <- "[ictt] " + strings.TrimSpace(out)
+	return nil
+}
+
+// captureForge runs a forge command, streams output line-by-line to logCh,
+// and returns the combined output as a string.
+func (m *deployModel) captureForge(dir string, extraEnv []string, args ...string) (string, error) {
+	cmd := exec.Command("forge", args...)
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(),
+		"HOME="+os.Getenv("HOME"),
+		"PATH="+os.Getenv("PATH")+":/snap/bin:/usr/local/bin",
+	)
+	cmd.Env = append(cmd.Env, extraEnv...)
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return "", err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return "", err
+	}
+	if err := cmd.Start(); err != nil {
+		return "", err
+	}
+
+	var mu sync.Mutex
+	var buf strings.Builder
+	var wg sync.WaitGroup
+	wg.Add(2)
+	scanPipe := func(r interface{ Scan() bool; Text() string }) {
+		defer wg.Done()
+		for r.Scan() {
+			line := r.Text()
+			m.logCh <- line
+			mu.Lock()
+			buf.WriteString(line + "\n")
+			mu.Unlock()
+		}
+	}
+	go scanPipe(bufio.NewScanner(stdout))
+	go scanPipe(bufio.NewScanner(stderr))
+	wg.Wait()
+
+	err = cmd.Wait()
+	return buf.String(), err
+}
+
+// tfOutput runs `terraform -chdir=<dir> output -raw <key>`.
+func (m *deployModel) tfOutput(dir, key string) (string, error) {
+	out, err := exec.Command("terraform", "-chdir="+dir, "output", "-raw", key).Output()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(out)), nil
+}
+
+// parseDeployedTo extracts the contract address from forge create output.
+func parseDeployedTo(output string) string {
+	m := ociDeployedToRe.FindStringSubmatch(output)
+	if len(m) == 2 {
+		return m[1]
+	}
+	return ""
+}
+
+// data2rpcURL extracts the rpcUrl field from a raw network.json byte slice.
+func data2rpcURL(data []byte) string {
+	var v struct {
+		RPCURL string `json:"rpcUrl"`
+	}
+	json.Unmarshal(data, &v) //nolint:errcheck
+	return v.RPCURL
+}
+
+// ociNetworkJSON is the shape of ~/.claw1/<name>/network.json for OCI deploys.
+type ociNetworkJSON struct {
+	Name               string       `json:"name"`
+	ChainID            int64        `json:"chainId"`
+	SubnetID           string       `json:"subnetId,omitempty"`
+	BlockchainID       string       `json:"blockchainId,omitempty"`
+	RPCURL             string       `json:"rpcUrl"`
+	PlatformRPCURL     string       `json:"platformRpcUrl,omitempty"`
+	DeployerPrivateKey string       `json:"deployerPrivateKey"`
+	Contracts          []ociContract `json:"contracts"`
+	OCI                *ociNetMeta  `json:"oci,omitempty"`
+}
+
+type ociContract struct {
+	Name       string `json:"name"`
+	Address    string `json:"address"`
+	DeployedAt string `json:"deployedAt,omitempty"`
+}
+
+type ociNetMeta struct {
+	RemoteRPCURL string `json:"remoteRpcUrl,omitempty"`
+	VMIP         string `json:"vmIp,omitempty"`
 }
 
 func (m *deployModel) runLocal() {
@@ -276,7 +624,72 @@ func (m *deployModel) runLocal() {
 		return
 	}
 
+	m.advCh <- 3
+	if err := m.deployERC3643Local(); err != nil {
+		m.logCh <- "[erc3643] deploy failed: " + err.Error()
+		close(m.logCh)
+		return
+	}
+
 	close(m.logCh)
+}
+
+// deployERC3643Local reads network.json to get the RPC + deployer key, then
+// runs forge script to deploy the T-REX suite.
+func (m *deployModel) deployERC3643Local() error {
+	home, _ := os.UserHomeDir()
+	netPath := filepath.Join(home, ".claw1", "claw1demobank", "network.json")
+	data, err := os.ReadFile(netPath)
+	if err != nil {
+		return fmt.Errorf("read network.json: %w", err)
+	}
+	var net struct {
+		RPCURL             string `json:"rpcUrl"`
+		DeployerPrivateKey string `json:"deployerPrivateKey"`
+	}
+	if err := json.Unmarshal(data, &net); err != nil {
+		return fmt.Errorf("parse network.json: %w", err)
+	}
+	if net.RPCURL == "" || net.DeployerPrivateKey == "" {
+		return fmt.Errorf("network.json missing rpcUrl or deployerPrivateKey")
+	}
+
+	contractsDir := filepath.Join(m.cfg.repoRoot, "contracts")
+	const ewoqAddr = "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"
+	cmd := exec.Command("forge", "script", "script/DeployERC3643.s.sol:DeployERC3643",
+		"--root", contractsDir,
+		"--rpc-url", net.RPCURL,
+		"--broadcast",
+	)
+	cmd.Env = append(os.Environ(),
+		"DEPLOYER_PRIVATE_KEY="+net.DeployerPrivateKey,
+		"DEMO_INVESTOR_ADDRESS="+ewoqAddr,
+	)
+	cmd.Dir = contractsDir
+
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		return err
+	}
+	stderr, err := cmd.StderrPipe()
+	if err != nil {
+		return err
+	}
+	if err := cmd.Start(); err != nil {
+		return err
+	}
+	var wg sync.WaitGroup
+	wg.Add(2)
+	scan := func(r interface{ Scan() bool; Text() string }) {
+		defer wg.Done()
+		for r.Scan() {
+			m.logCh <- r.Text()
+		}
+	}
+	go scan(bufio.NewScanner(stdout))
+	go scan(bufio.NewScanner(stderr))
+	wg.Wait()
+	return cmd.Wait()
 }
 
 // runCmd runs a command and streams its output line by line to logCh.

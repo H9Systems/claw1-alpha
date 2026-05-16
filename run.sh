@@ -6,6 +6,7 @@
 #   ./run.sh --skip-build  # skip provider build if already installed
 #   ./run.sh --no-explorer # skip Blockscout (terraform only)
 #   ./run.sh --oci         # Phase 2: deploy contracts to OCI L1 via SSH tunnel
+#   ./run.sh --oci --ictt  # Phase 2 + ICTT bridge (run scripts/ictt-setup.sh first)
 #
 # On-prem flow:
 #   1. Preflight checks (forge, avalanche, docker, jq)
@@ -21,6 +22,8 @@
 #   2. Read ~/.claw1/claw1demobank-oci/network.json (scp'd by Phase 1)
 #   3. Open SSH tunnel 54320 -> remote RPC port
 #   4. Deploy ComplianceRegistry + DividendDistributor via forge create
+#   4b. Deploy ERC-3643 T-REX suite via forge script
+#   4c. Deploy ICTT bridge [--ictt only, requires scripts/ictt-setup.sh]
 #   5. Print connection details
 
 set -euo pipefail
@@ -35,11 +38,13 @@ NETWORK_JSON="${CLAW1_DATA_DIR:-$HOME/.claw1}/$CLAW1_NAME/network.json"
 SKIP_BUILD=false
 NO_EXPLORER=false
 OCI_MODE=false
+ICTT_MODE=false
 for arg in "$@"; do
   case "$arg" in
     --skip-build)  SKIP_BUILD=true ;;
     --no-explorer) NO_EXPLORER=true ;;
     --oci)         OCI_MODE=true ;;
+    --ictt)        ICTT_MODE=true ;;
     *) echo "Unknown argument: $arg"; exit 1 ;;
   esac
 done
@@ -118,10 +123,9 @@ if [ "$OCI_MODE" = true ]; then
   step "4/5" "Deploy contracts via forge create"
 
   echo "  Deploying ComplianceRegistry..."
-  CR_OUT=$(forge create "src/ComplianceRegistry.sol:ComplianceRegistry" \
+  CR_OUT=$(FOUNDRY_ETH_PRIVATE_KEY="$DEPLOYER_KEY" forge create "src/ComplianceRegistry.sol:ComplianceRegistry" \
     --root "$CONTRACTS_DIR" \
     --rpc-url "$ACTIVE_RPC" \
-    --private-key "$DEPLOYER_KEY" \
     --broadcast \
     --constructor-args "$CHAIN_ID" "$EWOQ_ADDR" "0x0000000000000000000000000000000000000000" "0" "demo" \
     2>&1)
@@ -130,10 +134,9 @@ if [ "$OCI_MODE" = true ]; then
   [ -z "$CR_ADDR" ] && die "Could not parse ComplianceRegistry address from forge output"
 
   echo "  Deploying DividendDistributor..."
-  DD_OUT=$(forge create "src/DividendDistributor.sol:DividendDistributor" \
+  DD_OUT=$(FOUNDRY_ETH_PRIVATE_KEY="$DEPLOYER_KEY" forge create "src/DividendDistributor.sol:DividendDistributor" \
     --root "$CONTRACTS_DIR" \
     --rpc-url "$ACTIVE_RPC" \
-    --private-key "$DEPLOYER_KEY" \
     --broadcast \
     --constructor-args "0x0000000000000000000000000000000000000000" "0" \
     2>&1)
@@ -141,20 +144,77 @@ if [ "$OCI_MODE" = true ]; then
   DD_ADDR=$(echo "$DD_OUT" | sed -nE 's/^Deployed to:[[:space:]]+(0x[a-fA-F0-9]{40}).*/\1/p' | head -1)
   [ -z "$DD_ADDR" ] && die "Could not parse DividendDistributor address from forge output"
 
+  step "4b/5" "Deploy ERC-3643 (T-REX) suite via forge script"
+  ERC3643_OUT=$(DEPLOYER_PRIVATE_KEY="$DEPLOYER_KEY" \
+    DEMO_INVESTOR_ADDRESS="$EWOQ_ADDR" \
+    forge script "script/DeployERC3643.s.sol:DeployERC3643" \
+      --root "$CONTRACTS_DIR" \
+      --rpc-url "$ACTIVE_RPC" \
+      --broadcast \
+      2>&1)
+  echo "$ERC3643_OUT"
+  TOKEN_ADDR=$(echo "$ERC3643_OUT" | grep -oP 'Token deployed at:\s+\K(0x[a-fA-F0-9]{40})' | head -1)
+  IR_ADDR=$(echo "$ERC3643_OUT"   | grep -oP 'IdentityRegistry deployed at:\s+\K(0x[a-fA-F0-9]{40})' | head -1)
+  [ -z "$TOKEN_ADDR" ] && echo "  WARNING: could not parse ERC-3643 Token address (check broadcast logs)"
+
   # Update local OCI network.json for dashboard/scripts. Keep the remote RPC as metadata
   # and point rpcUrl at the active local SSH tunnel.
   NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
   UPDATED=$(jq --arg name1 "ComplianceRegistry" --arg addr1 "$CR_ADDR" --arg ts1 "$NOW" \
                --arg name2 "DividendDistributor" --arg addr2 "$DD_ADDR" --arg ts2 "$NOW" \
+               --arg name3 "ERC3643Token" --arg addr3 "${TOKEN_ADDR:-}" --arg ts3 "$NOW" \
+               --arg name4 "IdentityRegistry" --arg addr4 "${IR_ADDR:-}" --arg ts4 "$NOW" \
                --arg activeRpc "$ACTIVE_RPC" --arg remoteRpc "$OCI_RPC" --arg vmIp "$OCI_IP" \
     '.rpcUrl = $activeRpc
      | .oci.remoteRpcUrl = $remoteRpc
      | .oci.vmIp = $vmIp
-     | .contracts = [
-       {"name": $name1, "address": $addr1, "deployedAt": $ts1},
-       {"name": $name2, "address": $addr2, "deployedAt": $ts2}
-     ]' "$OCI_NETWORK_JSON")
+     | .contracts = (
+       [{"name": $name1, "address": $addr1, "deployedAt": $ts1},
+        {"name": $name2, "address": $addr2, "deployedAt": $ts2}]
+       + (if $addr3 != "" then [{"name": $name3, "address": $addr3, "deployedAt": $ts3}] else [] end)
+       + (if $addr4 != "" then [{"name": $name4, "address": $addr4, "deployedAt": $ts4}] else [] end)
+     )' "$OCI_NETWORK_JSON")
   echo "$UPDATED" > "$OCI_NETWORK_JSON"
+
+  # ── Optional: ICTT bridge ─────────────────────────────────────────────────
+  ICTT_HOME_ADDR=""
+  ICTT_REMOTE_ADDR=""
+
+  if [ "$ICTT_MODE" = true ]; then
+    ICTT_LIB="$CONTRACTS_DIR/lib/avalanche-interchain-token-transfer"
+    if [ ! -d "$ICTT_LIB" ]; then
+      echo "  WARNING: ICTT lib not installed — run: ./scripts/ictt-setup.sh"
+    else
+      step "4c/5" "Deploy ICTT bridge (TokenHome + TokenRemote)"
+      BLOCKCHAIN_ID=$(jq -r '.blockchainId // ""' "$OCI_NETWORK_JSON")
+      ICTT_OUT=$(DEPLOYER_PRIVATE_KEY="$DEPLOYER_KEY" \
+        C_CHAIN_RPC_URL="https://api.avax-test.network/ext/bc/C/rpc" \
+        C_CHAIN_BLOCKCHAIN_ID="0x7fc93d85c6d62be589232824d4c06ca2f89b8800dc83c98a804fcddabb3ae2d5" \
+        L1_RPC_URL="$ACTIVE_RPC" \
+        L1_TELEPORTER_REGISTRY="0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228" \
+        C_CHAIN_TELEPORTER_REGISTRY="0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228" \
+        forge script "script/DeployICTT.s.sol:DeployICTT" \
+          --root "$CONTRACTS_DIR" \
+          --multi \
+          --broadcast \
+          2>&1)
+      echo "$ICTT_OUT"
+      ICTT_HOME_ADDR=$(echo "$ICTT_OUT" | grep -oP 'ICTT_TOKEN_HOME:\s+\K(0x[a-fA-F0-9]{40})' | head -1)
+      ICTT_REMOTE_ADDR=$(echo "$ICTT_OUT" | grep -oP 'ICTT_TOKEN_REMOTE:\s+\K(0x[a-fA-F0-9]{40})' | head -1)
+    fi
+  fi
+
+  # Append ICTT addresses to network.json if we got them
+  if [ -n "$ICTT_HOME_ADDR" ] || [ -n "$ICTT_REMOTE_ADDR" ]; then
+    NOW2=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+    UPDATED=$(echo "$UPDATED" | jq \
+      --arg ih "$ICTT_HOME_ADDR" --arg it "$ICTT_REMOTE_ADDR" --arg ts "$NOW2" '
+      .contracts += (
+        (if $ih != "" then [{"name":"ICTTTokenHome","address":$ih,"deployedAt":$ts}] else [] end) +
+        (if $it != "" then [{"name":"ICTTTokenRemote","address":$it,"deployedAt":$ts}] else [] end)
+      )')
+    echo "$UPDATED" > "$OCI_NETWORK_JSON"
+  fi
 
   step "5/5" "OCI deployment complete"
   echo ""
@@ -168,6 +228,10 @@ if [ "$OCI_MODE" = true ]; then
   echo "  Chain ID:            $CHAIN_ID"
   echo "  ComplianceRegistry:  $CR_ADDR"
   echo "  DividendDistributor: $DD_ADDR"
+  [ -n "$TOKEN_ADDR" ]      && echo "  ERC-3643 Token:      $TOKEN_ADDR"
+  [ -n "$IR_ADDR" ]         && echo "  IdentityRegistry:    $IR_ADDR"
+  [ -n "$ICTT_HOME_ADDR" ]  && echo "  ICTT TokenHome:      $ICTT_HOME_ADDR  (C-chain)"
+  [ -n "$ICTT_REMOTE_ADDR" ] && echo "  ICTT TokenRemote:    $ICTT_REMOTE_ADDR  (L1)"
   echo ""
   echo "  Verify:"
   echo "    cast code $CR_ADDR --rpc-url $ACTIVE_RPC"
@@ -232,6 +296,30 @@ fi
 echo ""
 terraform -chdir="$TF_DIR" apply -auto-approve
 
+# ── 4b. Deploy ERC-3643 (T-REX) suite ───────────────────────────────────────
+
+step "4b/5" "Deploy ERC-3643 (T-REX) suite"
+
+if [ ! -f "$NETWORK_JSON" ]; then
+  echo "  WARNING: $NETWORK_JSON not found — skipping ERC-3643 deploy."
+  echo "  Deploy manually: DEPLOYER_PRIVATE_KEY=<key> forge script ..."
+else
+  LOCAL_RPC=$(jq -r .rpcUrl "$NETWORK_JSON" 2>/dev/null)
+  LOCAL_DEPLOYER_KEY=$(jq -r .deployerPrivateKey "$NETWORK_JSON" 2>/dev/null)
+  [ -n "$LOCAL_RPC" ] && [ "$LOCAL_RPC" != "null" ] || die "network.json missing rpcUrl"
+  [ -n "$LOCAL_DEPLOYER_KEY" ] && [ "$LOCAL_DEPLOYER_KEY" != "null" ] || die "network.json missing deployerPrivateKey"
+
+  LOCAL_EWOQ_ADDR="0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"
+  ERC3643_OUT=$(DEPLOYER_PRIVATE_KEY="$LOCAL_DEPLOYER_KEY" \
+    DEMO_INVESTOR_ADDRESS="$LOCAL_EWOQ_ADDR" \
+    forge script "script/DeployERC3643.s.sol:DeployERC3643" \
+      --root "$REPO_ROOT/contracts" \
+      --rpc-url "$LOCAL_RPC" \
+      --broadcast \
+      2>&1)
+  echo "$ERC3643_OUT"
+fi
+
 # ── 5. Start Blockscout ──────────────────────────────────────────────────────
 
 if [ "$NO_EXPLORER" = false ]; then
@@ -260,11 +348,13 @@ if [ -f "$NETWORK_JSON" ]; then
   CHAIN_ID=$(jq -r .chainId "$NETWORK_JSON" 2>/dev/null || echo "")
   COMPLIANCE_ADDR=$(jq -r '.contracts[] | select(.name == "ComplianceRegistry") | .address' "$NETWORK_JSON" 2>/dev/null || echo "")
   DIVIDEND_ADDR=$(jq -r '.contracts[] | select(.name == "DividendDistributor") | .address' "$NETWORK_JSON" 2>/dev/null || echo "")
+  TOKEN_ADDR=$(jq -r '.contracts[] | select(.name == "ERC3643Token") | .address' "$NETWORK_JSON" 2>/dev/null || echo "")
 
   [ -n "$RPC_URL" ]         && echo "  L1 RPC:              $RPC_URL"
   [ -n "$CHAIN_ID" ]        && echo "  Chain ID:            $CHAIN_ID"
   [ -n "$COMPLIANCE_ADDR" ] && echo "  ComplianceRegistry:  $COMPLIANCE_ADDR"
   [ -n "$DIVIDEND_ADDR" ]   && echo "  DividendDistributor: $DIVIDEND_ADDR"
+  [ -n "$TOKEN_ADDR" ]      && echo "  ERC-3643 Token:      $TOKEN_ADDR"
 fi
 
 if [ "$NO_EXPLORER" = false ]; then

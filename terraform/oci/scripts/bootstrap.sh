@@ -52,14 +52,16 @@ avalanche blockchain create "$CLAW1_NAME" \
   --proxy-contract-owner "$EWOQ_ADDR" \
   --force
 
-# -- Step 2: Patch genesis - inject TxAllowList -------------------------------
+# -- Step 2: Patch genesis - inject TxAllowList + Warp precompile ------------
+# Warp is required for ICTT (C-chain → L1 bridge). Must be genesis-time.
 
 GENESIS_PATH="$HOME/.avalanche-cli/subnets/$CLAW1_NAME/genesis.json"
-echo "[bootstrap] Patching genesis for TxAllowList at $GENESIS_PATH"
+echo "[bootstrap] Patching genesis for TxAllowList + Warp at $GENESIS_PATH"
 
-jq --arg admin "$EWOQ_ADDR" \
-  '.config.txAllowListConfig = {"blockTimestamp": 0, "adminAddresses": [$admin]}' \
-  "$GENESIS_PATH" > "$GENESIS_PATH.tmp"
+jq --arg admin "$EWOQ_ADDR" '
+  .config.txAllowListConfig = {"blockTimestamp": 0, "adminAddresses": [$admin]}
+  | .config.warpConfig = {"blockTimestamp": 0, "quorumNumerator": 0}
+' "$GENESIS_PATH" > "$GENESIS_PATH.tmp"
 mv "$GENESIS_PATH.tmp" "$GENESIS_PATH"
 
 # -- Step 3: Deploy blockchain -------------------------------------------------
@@ -68,7 +70,7 @@ echo "[bootstrap] Deploying blockchain (60-120s)"
 DEPLOY_OUT=$(avalanche blockchain deploy "$CLAW1_NAME" --local 2>&1)
 echo "$DEPLOY_OUT"
 
-# -- Step 4: Parse RPC URL and deployer key -----------------------------------
+# -- Step 4: Parse RPC URL, deployer key, and chain IDs ----------------------
 
 RPC_URL=$(echo "$DEPLOY_OUT" \
   | grep -oP '(?:RPC Endpoint|RPC URL):\s+\K(http://127\.0\.0\.1:\d+/ext/bc/[^\s|]+/rpc)' \
@@ -84,7 +86,18 @@ if [ -z "$RPC_URL" ] || [ -z "$DEPLOYER_KEY" ]; then
   exit 1
 fi
 
-echo "[bootstrap] RPC URL: $RPC_URL"
+# BlockchainID is embedded in the RPC URL path: /ext/bc/<ID>/rpc
+BLOCKCHAIN_ID=$(echo "$RPC_URL" | sed -nE 's#^http://127\.0\.0\.1:[0-9]+/ext/bc/([^/]+)/rpc$#\1#p')
+
+# SubnetID from CLI output (format: "Subnet ID: <CB58>")
+SUBNET_ID=$(echo "$DEPLOY_OUT" \
+  | grep -oP '(?:Subnet ID|SubnetID):\s+\K[1-9A-HJ-NP-Za-km-z]+' \
+  | head -1)
+SUBNET_ID="${SUBNET_ID:-}"
+
+echo "[bootstrap] RPC URL:       $RPC_URL"
+echo "[bootstrap] BlockchainID:  ${BLOCKCHAIN_ID:-<not parsed>}"
+echo "[bootstrap] SubnetID:      ${SUBNET_ID:-<not parsed>}"
 
 # -- Step 5: Verify TxAllowList precompile ------------------------------------
 
@@ -113,8 +126,8 @@ cat > "$NETWORK_JSON" <<JSON
 {
   "name": "$CLAW1_NAME",
   "chainId": $CHAIN_ID,
-  "subnetId": "",
-  "blockchainId": "",
+  "subnetId": "$SUBNET_ID",
+  "blockchainId": "$BLOCKCHAIN_ID",
   "rpcUrl": "$RPC_URL",
   "platformRpcUrl": "http://127.0.0.1:9650",
   "deployerPrivateKey": "$DEPLOYER_KEY",

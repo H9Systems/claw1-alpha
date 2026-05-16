@@ -203,7 +203,6 @@ func (r *contractResource) deployContract(ctx context.Context, plan contractReso
 		"create",
 		contractArg,
 		"--rpc-url", plan.RPCURL.ValueString(),
-		"--private-key", plan.DeployerKey.ValueString(),
 		"--broadcast",
 	}
 	args = append(args, rootArgs...)
@@ -213,6 +212,8 @@ func (r *contractResource) deployContract(ctx context.Context, plan contractReso
 	}
 
 	cmd := exec.CommandContext(ctx, "forge", args...)
+	// Pass key via env var to avoid exposure in ps aux.
+	cmd.Env = append(os.Environ(), "FOUNDRY_ETH_PRIVATE_KEY="+plan.DeployerKey.ValueString())
 	output, err := cmd.CombinedOutput()
 
 	if logPath != "" {

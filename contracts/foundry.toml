@@ -14,6 +14,7 @@ remappings = [
     "@onchain-id/solidity/=lib/solidity/",
     "@T-REX/=lib/T-REX/contracts/",
     "forge-std/=lib/forge-std/src/",
+    "@ictt/=lib/avalanche-interchain-token-transfer/contracts/src/",
 ]
 
 [profile.default.fuzz]

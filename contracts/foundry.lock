@@ -1,8 +1,32 @@
 {
+  "lib/T-REX": {
+    "tag": {
+      "name": "4.1.6",
+      "rev": "a09cfd38aa257d56db7ff9c90f30e65f125a141b"
+    }
+  },
   "lib/forge-std": {
     "tag": {
       "name": "v1.16.1",
       "rev": "620536fa5277db4e3fd46772d5cbc1ea0696fb43"
+    }
+  },
+  "lib/openzeppelin-contracts": {
+    "tag": {
+      "name": "v4.9.6",
+      "rev": "dc44c9f1a4c3b10af99492eed84f83ed244203f6"
+    }
+  },
+  "lib/openzeppelin-contracts-upgradeable": {
+    "tag": {
+      "name": "v4.9.6",
+      "rev": "2d081f24cac1a867f6f73d512f2022e1fa987854"
+    }
+  },
+  "lib/solidity": {
+    "tag": {
+      "name": "2.2.1",
+      "rev": "a483cda6821e3883497972d36d0c4c1e1693e483"
     }
   }
 }
