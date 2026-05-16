@@ -28,3 +28,10 @@ Key routing rules:
 - Save progress → invoke /context-save
 - Resume context → invoke /context-restore
 
+## Pre-commit doc sync
+
+**Before every `git commit` that touches `cli/`, `terraform/`, `contracts/`, `run.sh`, `preflight.sh`, or `demo/`:**
+invoke `/update-docs` first. The skill checks staged changes, updates `DOCS.md` and `DOCS.en.md` to match, and stages the updated files. Then proceed with the commit.
+
+Skip `/update-docs` only when the staged diff contains exclusively `*.md` files, test fixtures, or gitignore changes with no operational behavior change.
+
