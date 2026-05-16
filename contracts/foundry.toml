@@ -1,0 +1,13 @@
+[profile.default]
+src = "src"
+out = "out"
+libs = ["lib"]
+test = "test"
+script = "script"
+evm_version = "london"
+
+[profile.default.fuzz]
+runs = 256
+
+[rpc_endpoints]
+local = "${L1_RPC_URL}"

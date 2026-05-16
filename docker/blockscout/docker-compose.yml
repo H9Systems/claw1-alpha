@@ -1,0 +1,101 @@
+# Blockscout v6 — split architecture (backend + frontend)
+# Backend API: http://localhost:4000
+# Explorer UI:  http://localhost:3001
+#
+# Usage: ./docker/blockscout/start.sh
+# Requires: .claw1/network.json written by `avalanche blockchain deploy`
+
+services:
+  db:
+    image: postgres:14-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_PASSWORD: blockscout
+      POSTGRES_USER: blockscout
+      POSTGRES_DB: blockscout
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U blockscout"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+
+  backend:
+    image: ghcr.io/blockscout/blockscout:latest
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    ports:
+      - "4000:4000"
+    environment:
+      DATABASE_URL: postgresql://blockscout:blockscout@db:5432/blockscout?ssl=false
+      REDIS_URL: redis://redis:6379
+      # Injected by start.sh from .claw1/network.json
+      ETHEREUM_JSONRPC_VARIANT: geth
+      ETHEREUM_JSONRPC_HTTP_URL: ${L1_RPC_URL}
+      ETHEREUM_JSONRPC_TRACE_URL: ${L1_RPC_URL}
+      # Subnet-EVM does not support debug_traceTransaction or historical trie lookups
+      INDEXER_DISABLE_INTERNAL_TRANSACTIONS_FETCHER: "true"
+      INDEXER_DISABLE_COIN_BALANCES_FETCHER: "true"
+      CHAIN_ID: ${CHAIN_ID}
+      COIN: CLAW
+      COIN_NAME: CLAW
+      NETWORK: Claw1 Demo
+      SUBNETWORK: "Private L1"
+      # API v2 required by the separate frontend
+      API_V2_ENABLED: "true"
+      # Disable features that require external services
+      DISABLE_EXCHANGE_RATES: "true"
+      DISABLE_KNOWN_TOKENS: "true"
+      TXS_STATS_ENABLED: "false"
+      TOKEN_INSTANCE_OWNER_MIGRATION_ENABLED: "false"
+      DISABLE_INDEXER: "false"
+      INDEXER_DISABLE_PENDING_TRANSACTIONS_FETCHER: "true"
+      # Block time matches AvalancheGo ~1s finality
+      AVERAGE_BLOCK_TIME: "1000"
+      # Secret — local dev only, not for production
+      SECRET_KEY_BASE: "${SECRET_KEY_BASE:-claw1-hackathon-dev-secret-not-for-production}"
+      CHECK_ORIGIN: "false"
+      PORT: "4000"
+      MIX_ENV: "prod"
+    command: sh -c "bin/blockscout eval \"Elixir.Explorer.ReleaseTasks.create_and_migrate()\" && bin/blockscout start"
+
+  frontend:
+    image: ghcr.io/blockscout/frontend:v2.2.1
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "3001:3000"
+    environment:
+      # Browser-side: must be reachable from the judge's laptop
+      NEXT_PUBLIC_API_HOST: localhost
+      NEXT_PUBLIC_API_PORT: "4000"
+      NEXT_PUBLIC_API_PROTOCOL: http
+      NEXT_PUBLIC_NETWORK_NAME: "Claw1 Demo"
+      NEXT_PUBLIC_NETWORK_SHORT_NAME: "CLAW1"
+      NEXT_PUBLIC_NETWORK_ID: ${CHAIN_ID}
+      NEXT_PUBLIC_NETWORK_CURRENCY_NAME: "CLAW"
+      NEXT_PUBLIC_NETWORK_CURRENCY_SYMBOL: "CLAW"
+      NEXT_PUBLIC_NETWORK_CURRENCY_DECIMALS: "18"
+      NEXT_PUBLIC_IS_TESTNET: "true"
+      NEXT_PUBLIC_APP_HOST: localhost
+      NEXT_PUBLIC_APP_PORT: "3001"
+      NEXT_PUBLIC_APP_PROTOCOL: http
+      # Disable features that rely on external price feeds
+      NEXT_PUBLIC_API_SPEC_URL: ""
+      NEXT_PUBLIC_STATS_API_HOST: ""
+
+volumes:
+  postgres-data:
