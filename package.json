@@ -1,0 +1,30 @@
+{
+  "name": "claw1-pitch",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "packageManager": "pnpm@10.11.0",
+  "scripts": {
+    "preinstall": "node scripts/check-tanstack-advisory.mjs",
+    "build": "node scripts/check-tanstack-advisory.mjs && vite build",
+    "dev": "vite --host 0.0.0.0",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@tanstack/react-router": "1.170.3",
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "typescript": "latest",
+    "react": "latest",
+    "react-dom": "latest"
+  },
+  "devDependencies": {},
+  "pnpm": {
+    "overrides": {
+      "@tanstack/react-router@1.169.5": "1.170.3",
+      "@tanstack/react-router@1.169.8": "1.170.3",
+      "@tanstack/router-core@1.169.5": "1.170.3",
+      "@tanstack/router-core@1.169.8": "1.170.3"
+    }
+  }
+}
