@@ -10,6 +10,8 @@ This document maps the regulatory landscape that shapes every product decision i
 
 When a product decision touches compliance, check this document first. The constraints are real even when they feel arbitrary.
 
+The current spec adds a product rule: OCI destruction must fail closed. If `claw1` cannot prove Terraform state and OCI inventory are clean, it must show remaining resources and manual commands. `--preserve-evidence` keeps local evidence; `--evidence-bucket` is the only explicit cloud retention mode.
+
 ---
 
 ## The Core Regulatory Tension

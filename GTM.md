@@ -16,7 +16,9 @@ El proveedor es `terraform-provider-claw1` (Go). Recursos: `claw1_l1` (bootstrap
 1. **`ComplianceRegistry.sol`** — registro de configuración de cumplimiento on-chain; desplegado primero; almacena chain ID, admin TxAllowList, verificador KYC y jurisdicción de forma inmutable; el regulador consulta directamente
 2. **`DividendDistributor.sol`** — distribución de dividendos KYC-gated; rastrea asignaciones de accionistas en puntos base; cumplimiento KYC enchufable vía `IKYCVerifier` (EIP-5851); dirección cero desactiva cumplimiento para la demo
 
-El binario `claw1` provee la TUI: un asistente de tres pantallas (credenciales → despliegue → Sovereignty Receipt) que va desde cero hasta un OS de cumplimiento en vivo con teclas mínimas de teclado.
+El binario `claw1` provee la TUI/CLI operativa: credenciales, despliegue, Sovereignty Receipt, inspección del run, wallets de prueba y destrucción segura de OCI. El camino crítico no depende de Blockscout ni MetaMask.
+
+El pitch actual para una fintech CTO: una VM en OCI, un SSH, un comando. Claw1 crea la infraestructura, muestra qué pasó, guarda evidencia y destruye con verificación Terraform + inventario OCI.
 
 Este es el modelo Red Hat en HCL aplicado a la finreg LATAM: mismo kernel, dos destinos de despliegue, tres capas de cumplimiento que tus abogados pueden leer. La institución financiera elige qué configuración se adapta a su postura de infraestructura; el código del proveedor es idéntico de cualquier manera.
 

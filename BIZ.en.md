@@ -8,6 +8,8 @@
 
 Claw1 is a compliance-as-code platform for regulated financial institutions in Latin America. It deploys a private, permissioned Avalanche L1 with protocol-enforced KYC/AML controls and an immutable on-chain compliance evidence registry — from a single `terraform apply`.
 
+The current product surface is `claw1`: a TUI/CLI for infrastructure teams that need to provision, inspect, operate test wallets, observe transactions, and destroy OCI resources without hidden cost leftovers. The website is a static pitch deck, not an operating console.
+
 The infrastructure is open source (Apache 2.0). The business is selling audited, jurisdiction-specific compliance contract libraries that financial institutions would otherwise spend months building and auditing independently.
 
 ---
@@ -49,7 +51,7 @@ The current alternative is raw `avalanche-cli` + manual scripts — nothing a co
 - `terraform/` — on-prem configuration
 - `terraform/oci/` — Oracle Cloud (OCI) configuration
 - `DividendDistributor.sol` + `ComplianceRegistry.sol` — reference contracts with Foundry tests
-- Sovereignty Receipt (TUI)
+- Operational TUI/CLI: deploy, inspect, wallets, evidence, and destroy
 - All tooling and CLI integrations
 
 The open source layer is the distribution mechanism and trust-builder. Any infrastructure team can evaluate and run the full stack for free.

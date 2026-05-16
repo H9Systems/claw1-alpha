@@ -2,6 +2,8 @@
 
 Esta guía cubre todo lo necesario para poner en marcha Claw1, desde cero hasta una L1 Avalanche privada con contratos de cumplimiento desplegados, ya sea en local o en Oracle Cloud (OCI).
 
+> **Spec vigente:** `claw1` es la TUI/CLI operativa. El flujo web queda limitado al pitch deck estático en `/`, leído desde `PITCH.md`. Blockscout y MetaMask ya no son dependencias del camino crítico de demo; la TUI/CLI cubre observabilidad del run y wallets de prueba.
+
 ---
 
 ## Índice
@@ -145,11 +147,32 @@ claw1 --help
 
 ## 3. Despliegue rápido con TUI
 
-La TUI es la forma más rápida de desplegar sin tocar archivos de configuración manualmente.
+La TUI es la forma más rápida de operar el flujo completo sin tocar archivos de configuración manualmente.
 
 ```bash
 claw1
 ```
+
+### 3.1 Subcomandos programáticos
+
+Los mismos workflows corren sin pantalla interactiva para pruebas, scripts y demos grabadas:
+
+```bash
+claw1 deploy --oci --yes
+claw1 deploy --oci --yes --json
+claw1 inspect --oci
+claw1 wallet list --json
+claw1 destroy --oci --dry-run
+claw1 destroy --oci --yes --json
+```
+
+El modo `--json` emite JSONL estable con `run_id`, `workflow`, `step`, `status`, `resource_id`, `chain_id`, `tx_hash`, `message_id`, `error_code` y comandos manuales cuando aplica.
+
+### 3.2 Destrucción OCI segura
+
+`claw1 destroy --oci` falla cerrado. El flujo correcto es dry-run por defecto, inventario Terraform + OCI, confirmación explícita, `terraform destroy`, reparación de leftovers conocidos, verificación final y evidencia local bajo `~/.claw1/{deployment}/evidence/{run_id}/`.
+
+`--preserve-evidence` conserva solo evidencia local. `--evidence-bucket` es la única opción que retiene un recurso cloud intencionalmente.
 
 ### Pantalla 1: Asistente
 
@@ -601,9 +624,11 @@ Sobreescribir directorio base con `CLAW1_DATA_DIR`. Sobreescribir nombre con `CL
 
 ---
 
-## 9. Blockscout (explorador de bloques)
+## 9. Observabilidad del run y Blockscout
 
-Blockscout se inicia automáticamente con `./run.sh` (a menos que uses `--no-explorer`).
+Blockscout es opcional. El camino crítico de demo usa la observabilidad integrada de `claw1`: altura de bloque, chain ID, RPC, balances/nonces por wallet, tx lookup, contratos desplegados, eventos conocidos y estado ICM/ICTT cuando aplique.
+
+Blockscout puede seguir usándose para exploración genérica si se inicia con `./run.sh` (a menos que uses `--no-explorer`).
 
 Para iniciarlo manualmente:
 ```bash

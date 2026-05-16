@@ -16,6 +16,8 @@ Las instituciones financieras reguladas en América Latina no pueden usar servic
 
 El proveedor de Terraform es gratuito (Apache 2.0). El producto de pago es una biblioteca de contratos de cumplimiento auditados y específicos por jurisdicción (CNBV México, SMV Panamá, CVM Brasil) que una empresa tardaría meses en construir y auditar de forma independiente.
 
+**Dirección actual:** `claw1` es la TUI/CLI operativa. El asistente web queda fuera del camino crítico; el sitio raíz es solo un pitch deck estático en español leído desde `PITCH.md`. La demo OCI objetivo es una VM, un SSH, un comando: provisionar, inspeccionar, manejar wallets de prueba, observar transacciones/eventos, preservar evidencia y destruir recursos con verificación Terraform + inventario OCI.
+
 ---
 
 ## Instalación rápida
@@ -32,6 +34,10 @@ Esto descarga el binario `claw1` pre-compilado para tu plataforma (Linux/macOS, 
 claw1                    # asistente de despliegue (TUI)
 claw1 receipt            # Sovereignty Receipt en vivo (local)
 claw1 receipt --oci      # Sovereignty Receipt en vivo (OCI)
+claw1 inspect --oci      # observabilidad enfocada en el run
+claw1 wallet list        # wallets de prueba sin MetaMask
+claw1 destroy --oci --dry-run
+claw1 destroy --oci --yes --json
 ```
 
 ---
@@ -44,12 +50,13 @@ claw1 receipt --oci      # Sovereignty Receipt en vivo (OCI)
 claw1
 ```
 
-Abre el asistente de despliegue:
+Abre la TUI operativa:
 - Selecciona destino: **[1] OCI** o **[2] Local**
 - Para OCI: ingresa credenciales OCI (Tenancy OCID, User OCID, fingerprint, ruta de llave API, región, shape)
 - Para local: no se necesitan credenciales — despliega una devnet Avalanche local
 - Presiona **[D]** para desplegar
 - Monitorea el progreso paso a paso; presiona **Enter** al finalizar para ver el Sovereignty Receipt
+- Usa los subcomandos programáticos para scripts, pruebas y limpieza reproducible
 
 ### Opción B — Script manual
 

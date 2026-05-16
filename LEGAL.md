@@ -10,6 +10,8 @@ Este documento mapea el panorama regulatorio que da forma a cada decisión de pr
 
 Cuando una decisión de producto toca el cumplimiento, revisa este documento primero. Las restricciones son reales aunque se sientan arbitrarias.
 
+La spec actual agrega una regla de producto: la destrucción OCI debe fallar cerrado. Si `claw1` no puede demostrar que el estado Terraform y el inventario OCI están limpios, debe mostrar los recursos restantes y comandos manuales. `--preserve-evidence` conserva evidencia local; `--evidence-bucket` es la única retención cloud explícita.
+
 ---
 
 ## La Tensión Regulatoria Central

@@ -4,6 +4,18 @@
 
 - [x] **Create `.gitignore` with `.claw1/`** — `.claw1/network.json` contains the funded deployer private key. Must not be committed.
 
+- [x] **Add `AGENTS.md` for Codex** — symlink to `CLAUDE.md` so Codex and Claude share repo rules.
+
+- [x] **Add static pitch deck** — `PITCH.md` → `/` with React + TanStack Router + pnpm; no operational web wizard.
+
+- [ ] **Turn `claw1` into devtools TUI/CLI** — one engine for TUI and programmatic subcommands: deploy, inspect, wallet, destroy, demo.
+
+- [ ] **Fail-closed OCI destroy** — dry-run by default, Terraform + OCI inventory, `--yes` for scripts, local evidence, final verification, and manual commands if anything remains.
+
+- [ ] **Observability without Blockscout** — run-scoped panel/CLI for blocks, chain IDs, balances/nonces, tx lookup, contracts, events, and ICM/ICTT.
+
+- [ ] **Test wallets without MetaMask** — create/list/fund demo wallets, show balances by C-chain/L1, and never store private keys in evidence.
+
 - [x] **Write `preflight.sh`** — 2 gate checks before `terraform apply`:
   1. `forge --version` (Foundry on PATH)
   2. `avalanche network list` shows no stale networks

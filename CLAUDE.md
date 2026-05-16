@@ -8,6 +8,12 @@ When working with Claw1, keep these conventions in mind:
 - The provider lives in `terraform-provider-claw1/` and is installed via `make install`
 - Demo state is in `~/.claw1/{name}/network.json` — never commit this file
 - Reset between demos with `demo/reset.sh`
+- `AGENTS.md` is a symlink to this file so Codex uses the same repo rules
+- Current product surface is the Go `claw1` TUI/CLI, not a web wizard
+- Root `/` is a static Spanish pitch deck generated from `PITCH.md`
+- Blockscout and MetaMask must not be required for the critical demo path
+- OCI destroy flows must fail closed: dry-run, inventory, destroy, verify, and show remaining resource IDs if cleanup is imperfect
+- `--preserve-evidence` is local-only; `--evidence-bucket` is the only explicit cloud retention mode
 
 ## Skill routing
 
@@ -34,4 +40,3 @@ Key routing rules:
 invoke `/update-docs` first. The skill checks staged changes, updates `DOCS.md` and `DOCS.en.md` to match, and stages the updated files. Then proceed with the commit.
 
 Skip `/update-docs` only when the staged diff contains exclusively `*.md` files, test fixtures, or gitignore changes with no operational behavior change.
-

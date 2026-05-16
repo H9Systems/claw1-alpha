@@ -2,6 +2,8 @@
 
 This guide covers everything needed to get Claw1 running, from zero to a private Avalanche L1 with deployed compliance contracts, either locally or on Oracle Cloud (OCI).
 
+> **Current spec:** `claw1` is the operational TUI/CLI. The web surface is limited to the static pitch deck at `/`, read from `PITCH.md`. Blockscout and MetaMask are no longer critical-path demo dependencies; the TUI/CLI covers run-scoped observability and test wallets.
+
 ---
 
 ## Table of Contents
@@ -144,11 +146,32 @@ claw1 --help
 
 ## 3. Quick deploy with TUI
 
-The TUI is the fastest way to deploy without manually editing config files.
+The TUI is the fastest way to operate the full flow without manually editing config files.
 
 ```bash
 claw1
 ```
+
+### 3.1 Programmatic Subcommands
+
+The same workflows run without an interactive screen for tests, scripts, and recorded demos:
+
+```bash
+claw1 deploy --oci --yes
+claw1 deploy --oci --yes --json
+claw1 inspect --oci
+claw1 wallet list --json
+claw1 destroy --oci --dry-run
+claw1 destroy --oci --yes --json
+```
+
+`--json` emits stable JSONL with `run_id`, `workflow`, `step`, `status`, `resource_id`, `chain_id`, `tx_hash`, `message_id`, `error_code`, and manual commands when relevant.
+
+### 3.2 Safe OCI Destruction
+
+`claw1 destroy --oci` fails closed. Correct flow is dry-run by default, Terraform + OCI inventory, explicit confirmation, `terraform destroy`, repair of known leftovers, final verification, and local evidence under `~/.claw1/{deployment}/evidence/{run_id}/`.
+
+`--preserve-evidence` keeps local evidence only. `--evidence-bucket` is the only option that intentionally retains a cloud resource.
 
 ### Screen 1: Wizard
 
@@ -577,9 +600,11 @@ Override base directory with `CLAW1_DATA_DIR`. Override name with `CLAW1_NAME`.
 
 ---
 
-## 9. Blockscout (block explorer)
+## 9. Run Observability and Blockscout
 
-Blockscout starts automatically with `./run.sh` (unless you use `--no-explorer`).
+Blockscout is optional. The critical demo path uses integrated `claw1` observability: block height, chain ID, RPC, wallet balances/nonces, tx lookup, deployed contracts, known events, and ICM/ICTT status when relevant.
+
+Blockscout may still be used for generic exploration if started by `./run.sh` (unless you use `--no-explorer`).
 
 To start manually:
 ```bash

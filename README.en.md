@@ -16,6 +16,8 @@ Regulated financial institutions in Latin America cannot use public cloud blockc
 
 The Terraform provider is free (Apache 2.0). The paid product is a library of audited, jurisdiction-specific compliance contracts (CNBV Mexico, SMV Panama, CVM Brazil) that an enterprise would otherwise spend months building and auditing independently.
 
+**Current direction:** `claw1` is the operational TUI/CLI. The web wizard is out of the critical path; the root site is only a Spanish static pitch deck read from `PITCH.md`. The target OCI demo is one VM, one SSH session, one command: provision, inspect, manage test wallets, observe transactions/events, preserve evidence, and destroy resources with Terraform + OCI inventory verification.
+
 ---
 
 ## Quick Install
@@ -32,6 +34,10 @@ Downloads the pre-built `claw1` binary for your platform (Linux/macOS, amd64/arm
 claw1                    # deployment wizard (TUI)
 claw1 receipt            # live Sovereignty Receipt (local)
 claw1 receipt --oci      # live Sovereignty Receipt (OCI)
+claw1 inspect --oci      # run-scoped observability
+claw1 wallet list        # demo wallets without MetaMask
+claw1 destroy --oci --dry-run
+claw1 destroy --oci --yes --json
 ```
 
 ---
@@ -44,12 +50,13 @@ claw1 receipt --oci      # live Sovereignty Receipt (OCI)
 claw1
 ```
 
-Opens the deployment wizard:
+Opens the operational TUI:
 - Select target: **[1] OCI** or **[2] Local**
 - For OCI: enter OCI credentials (Tenancy OCID, User OCID, fingerprint, API key path, region, shape)
 - For Local: no credentials needed — deploys a local Avalanche devnet
 - Press **[D]** to deploy
 - Monitor step-by-step progress; press **Enter** when done to view the Sovereignty Receipt
+- Use programmatic subcommands for scripts, tests, and reproducible cleanup
 
 ### Option B — Manual script
 

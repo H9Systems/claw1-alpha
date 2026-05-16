@@ -16,7 +16,9 @@ The provider is `terraform-provider-claw1` (Go). Resources: `claw1_l1` (bootstra
 1. **`ComplianceRegistry.sol`** — on-chain compliance configuration record; deployed first; stores chain ID, TxAllowList admin, KYC verifier, and jurisdiction immutably on the chain; regulator queries directly
 2. **`DividendDistributor.sol`** — KYC-gated dividend distribution; tracks basis-point shareholder allocations; KYC enforcement pluggable via `IKYCVerifier` (EIP-5851); zero address disables enforcement for demo
 
-The `claw1` binary provides the TUI: a three-screen wizard (credentials → deploy → Sovereignty Receipt) that goes from zero to a live compliance OS with minimal keystrokes.
+The `claw1` binary provides the operational TUI/CLI: credentials, deploy, Sovereignty Receipt, run inspection, test wallets, and safe OCI destruction. The critical path does not depend on Blockscout or MetaMask.
+
+The current fintech CTO pitch: one OCI VM, one SSH session, one command. Claw1 creates the infrastructure, shows what happened, preserves evidence, and destroys with Terraform + OCI inventory verification.
 
 This is the Red Hat model in HCL applied to LATAM finreg: same kernel, two deployment targets, three compliance layers your lawyers can read. The financial institution picks which config fits their infrastructure posture; the provider code is identical either way.
 
