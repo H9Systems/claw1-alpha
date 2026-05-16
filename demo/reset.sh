@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Night-before prep and day-of reset.
+# Demo reset script.
 # Usage: ./demo/reset.sh [--apply-only]
 #
 # Full reset (default): terraform destroy → network clean → terraform apply
