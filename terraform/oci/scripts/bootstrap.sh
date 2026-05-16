@@ -100,8 +100,8 @@ ROLE_HEX=$(curl -sSf -X POST -H "Content-Type: application/json" \
 }
 ROLE_DEC=$((16#${ROLE_HEX#0x}))
 
-if [ "$ROLE_DEC" -ne 3 ]; then
-  echo "[bootstrap] ERROR: expected ewoq TxAllowList admin role 3, got $ROLE_DEC"
+if [ "$ROLE_DEC" -lt 2 ]; then
+  echo "[bootstrap] ERROR: expected ewoq TxAllowList admin role >=2, got $ROLE_DEC"
   exit 1
 fi
 echo "[bootstrap] TxAllowList verified: ewoq role=$ROLE_DEC"

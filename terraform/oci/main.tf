@@ -83,7 +83,7 @@ data "oci_core_images" "ubuntu_22_04" {
   compartment_id           = var.compartment_id
   operating_system         = "Canonical Ubuntu"
   operating_system_version = "22.04"
-  shape                    = "VM.Standard.E4.Flex"
+  shape                    = var.shape
   sort_by                  = "TIMECREATED"
   sort_order               = "DESC"
 }
@@ -94,11 +94,11 @@ resource "oci_core_instance" "claw1" {
   compartment_id      = var.compartment_id
   availability_domain = var.availability_domain
   display_name        = "claw1-l1-node"
-  shape               = "VM.Standard.E4.Flex"
+  shape               = var.shape
 
   shape_config {
-    ocpus         = 1
-    memory_in_gbs = 4
+    ocpus         = var.shape_ocpus
+    memory_in_gbs = var.shape_memory_gbs
   }
 
   source_details {

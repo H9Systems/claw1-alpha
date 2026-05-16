@@ -71,7 +71,7 @@ if [ "$OCI_MODE" = true ]; then
   step "2/5" "Open SSH tunnel (local 54320 -> OCI RPC port)"
   OCI_IP=$(terraform -chdir="$TF_DIR_OCI" output -raw oci_vm_ip 2>/dev/null) \
     || die "Could not read oci_vm_ip. Run: cd terraform/oci && terraform apply"
-  SSH_KEY=$(terraform -chdir="$TF_DIR_OCI" output -raw ssh_private_key_path 2>/dev/null || echo "$HOME/.ssh/id_rsa")
+  SSH_KEY=$(terraform -chdir="$TF_DIR_OCI" output -raw ssh_private_key_path 2>/dev/null || echo "$HOME/.ssh/id_ed25519")
   OCI_RPC=$(jq -r .rpcUrl "$OCI_NETWORK_JSON")
   REMOTE_PORT=$(echo "$OCI_RPC" | sed -nE 's#^http://127\.0\.0\.1:([0-9]+)/.*#\1#p')
   RPC_PATH=$(echo "$OCI_RPC" | sed -nE 's#^http://127\.0\.0\.1:[0-9]+/(ext/.*)$#\1#p')
@@ -112,7 +112,7 @@ if [ "$OCI_MODE" = true ]; then
     "readAllowList(address)(uint256)" "$EWOQ_ADDR" \
     --rpc-url "$ACTIVE_RPC" 2>/dev/null) || die "readAllowList call failed at $ACTIVE_RPC"
   ROLE_DEC=$((16#${ROLE_HEX#0x}))
-  [ "$ROLE_DEC" -eq 3 ] || die "Expected ewoq TxAllowList admin role 3, got $ROLE_DEC"
+  [ "$ROLE_DEC" -ge 2 ] || die "Expected ewoq TxAllowList admin role >=2 (Admin/Manager), got $ROLE_DEC"
   echo "  TxAllowList admin verified: $EWOQ_ADDR role=$ROLE_DEC"
 
   step "4/5" "Deploy contracts via forge create"
