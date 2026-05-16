@@ -12,7 +12,6 @@ import (
 	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
 )
 
 // ── Messages ─────────────────────────────────────────────────────────────────
@@ -402,15 +401,3 @@ func ociDefaultAD(region string) string {
 	return "aBCD:" + strings.ToUpper(strings.ReplaceAll(region, "-", "_")) + "-AD-1"
 }
 
-func stepDot(s stepStatus) string {
-	switch s {
-	case stepRunning:
-		return lipgloss.NewStyle().Foreground(yellow).Render("●")
-	case stepDone:
-		return lipgloss.NewStyle().Foreground(green).Render("●")
-	case stepFailed:
-		return lipgloss.NewStyle().Foreground(red).Render("●")
-	default:
-		return lipgloss.NewStyle().Foreground(dim).Render("○")
-	}
-}
