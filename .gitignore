@@ -1,0 +1,38 @@
+# Network artifacts — .claw1/network.json contains funded deployer private key
+.claw1/
+wallet/
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Foundry build artifacts
+contracts/out/
+contracts/cache/
+contracts/broadcast/
+
+# Go build artifacts
+terraform-provider-claw1/dist/
+terraform-provider-claw1/terraform-provider-claw1
+terraform-provider-claw1/terraform-provider-claw1_*
+*.terraform/
+.terraform.lock.hcl
+*.tfstate
+*.tfstate.backup
+
+# Node / pnpm
+node_modules/
+dashboard/.next/
+dashboard/dist/
+.pnpm-store/
+
+# Python / uv
+__pycache__/
+*.pyc
+.venv/
+openclaw-sidecar/.venv/
+
+# OS
+.DS_Store
+.gstack/
