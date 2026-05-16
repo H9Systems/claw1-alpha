@@ -29,14 +29,16 @@ type deployConfig struct {
 	ocpus       string
 	memoryGBs   string
 	repoRoot    string
+	enableICTT  bool // deploy ICTT TokenHome+TokenRemote (OCI only; requires scripts/ictt-setup.sh)
 }
 
 type wizardModel struct {
-	target   deployTarget
-	focus    int
-	inputs   []textinput.Model
-	err      string
-	repoRoot string
+	target     deployTarget
+	focus      int
+	inputs     []textinput.Model
+	err        string
+	repoRoot   string
+	enableICTT bool
 }
 
 const (
@@ -106,6 +108,10 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 			for i := range m.inputs {
 				m.inputs[i].Blur()
 			}
+		case "i", "I":
+			if m.target == targetOCI {
+				m.enableICTT = !m.enableICTT
+			}
 		}
 	}
 
@@ -129,7 +135,7 @@ func (m *wizardModel) syncFocus() {
 
 func (m wizardModel) validate() (deployConfig, error) {
 	if m.target == targetLocal {
-		return deployConfig{target: targetLocal, repoRoot: m.repoRoot}, nil
+		return deployConfig{target: targetLocal, repoRoot: m.repoRoot, enableICTT: false}, nil
 	}
 
 	tenancy := strings.TrimSpace(m.inputs[inTenancy].Value())
@@ -167,6 +173,7 @@ func (m wizardModel) validate() (deployConfig, error) {
 		ocpus:       strings.TrimSpace(m.inputs[inOcpus].Value()),
 		memoryGBs:   strings.TrimSpace(m.inputs[inMemory].Value()),
 		repoRoot:    m.repoRoot,
+		enableICTT:  m.enableICTT,
 	}, nil
 }
 
@@ -175,7 +182,8 @@ func (m wizardModel) View(width int) string {
 
 	// Title
 	b.WriteString(styleHeader.Render("CLAW1") + "  " +
-		styleDim.Render("Compliance Deploy Wizard") + "\n\n")
+		styleDim.Render("Compliance TUI") + "\n")
+	b.WriteString(styleDim.Render("  One tool: provision, inspect, transact, preserve evidence, destroy.") + "\n\n")
 
 	// Target selection
 	b.WriteString(styleSectionTitle.Render("DEPLOY TARGET") + "\n")
@@ -200,16 +208,44 @@ func (m wizardModel) View(width int) string {
 		b.WriteString(m.inputRow("Shape", inShape))
 		b.WriteString(m.inputRow("OCPUs", inOcpus))
 		b.WriteString(m.inputRow("Memory (GB)", inMemory))
+		b.WriteString("\n")
+		b.WriteString(styleSectionTitle.Render("COMPLIANCE SUITE") + "\n")
+		b.WriteString("  " + dot(green) + "  ERC-3643 T-REX    " + styleDim.Render("identity-bound token, KYC claim, ONCHAINID") + "\n")
+		b.WriteString("  " + dot(green) + "  ComplianceRegistry " + styleDim.Render("on-chain KYC / jurisdiction enforcement") + "\n")
+		b.WriteString("\n")
+		b.WriteString(styleSectionTitle.Render("ICTT BRIDGE") + "\n")
+		if m.enableICTT {
+			b.WriteString("  " + dot(green) + " " + styleGreen.Render("Enabled") +
+				styleDim.Render("  C-chain → L1 wrapped-token bridge (Teleporter/Warp)") + "\n")
+			b.WriteString(styleDim.Render("  Requires: scripts/ictt-setup.sh  |  Fuji Teleporter Registry wired") + "\n")
+		} else {
+			b.WriteString("  " + circle() + " " + styleDim.Render("Disabled  (press [I] to enable)") + "\n")
+		}
 	} else {
 		b.WriteString(styleGreen.Render("  No credentials needed — deploys a local Avalanche devnet.\n"))
 		b.WriteString(styleValue.Render("  Requires: forge, avalanche-cli, terraform, docker, jq\n"))
+		b.WriteString("\n")
+		b.WriteString(styleSectionTitle.Render("COMPLIANCE SUITE") + "\n")
+		b.WriteString("  " + dot(green) + "  ERC-3643 T-REX    " + styleDim.Render("identity-bound token, KYC claim, ONCHAINID") + "\n")
+		b.WriteString("  " + dot(green) + "  ComplianceRegistry " + styleDim.Render("on-chain KYC / jurisdiction enforcement") + "\n")
+		b.WriteString(styleDim.Render("  ICTT bridge not available for local devnet (no Fuji C-chain)") + "\n")
 	}
 
 	if m.err != "" {
 		b.WriteString("\n" + styleRed.Render("  ✗ "+m.err) + "\n")
 	}
 
-	b.WriteString(styleKeys.Render("\n  [Tab] next field   [D] deploy   [Q] quit"))
+	b.WriteString("\n" + styleSectionTitle.Render("SCRIPTABLE OPERATIONS") + "\n")
+	b.WriteString(styleDim.Render("  deploy:   claw1 deploy --oci --yes [--json]") + "\n")
+	b.WriteString(styleDim.Render("  destroy:  claw1 destroy --oci --dry-run | claw1 destroy --oci --yes [--json]") + "\n")
+	b.WriteString(styleDim.Render("  inspect:  claw1 inspect --oci [--json]") + "\n")
+	b.WriteString(styleDim.Render("  wallets:  claw1 wallet list [--json]") + "\n")
+
+	keys := "  [Tab] next field   [D] deploy   [Q] quit"
+	if m.target == targetOCI {
+		keys = "  [Tab] next field   [I] toggle ICTT   [D] deploy   [Q] quit"
+	}
+	b.WriteString(styleKeys.Render("\n" + keys))
 
 	inner := b.String()
 	return styleBox.Width(width - 4).Render(inner)

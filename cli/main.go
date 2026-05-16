@@ -129,6 +129,21 @@ func main() {
 		os.Exit(1)
 	}
 
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "deploy":
+			os.Exit(runDeployCLI(repoRoot, os.Args[2:]))
+		case "destroy":
+			os.Exit(runDestroyCLI(repoRoot, os.Args[2:]))
+		case "inspect":
+			os.Exit(runInspectCLI(os.Args[2:]))
+		case "wallet":
+			os.Exit(runWalletCLI(os.Args[2:]))
+		case "demo":
+			os.Exit(runDemoCLI(repoRoot, os.Args[2:]))
+		}
+	}
+
 	// Sub-command: `claw1 receipt` — jump straight to receipt view
 	if len(os.Args) > 1 && os.Args[1] == "receipt" {
 		target := targetLocal
@@ -172,8 +187,8 @@ type receiptOnlyModel struct {
 	r receiptModel
 }
 
-func (m receiptOnlyModel) Init() tea.Cmd           { return m.r.init() }
-func (m receiptOnlyModel) View() string            { return m.r.View(120) }
+func (m receiptOnlyModel) Init() tea.Cmd { return m.r.init() }
+func (m receiptOnlyModel) View() string  { return m.r.View(120) }
 func (m receiptOnlyModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg.(type) {
 	case tea.KeyMsg:
