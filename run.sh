@@ -1,0 +1,280 @@
+#!/usr/bin/env bash
+# run.sh — full E2E deployment for the Claw1 demo
+#
+# Usage:
+#   ./run.sh               # full on-prem flow (first-time or clean state)
+#   ./run.sh --skip-build  # skip provider build if already installed
+#   ./run.sh --no-explorer # skip Blockscout (terraform only)
+#   ./run.sh --oci         # Phase 2: deploy contracts to OCI L1 via SSH tunnel
+#
+# On-prem flow:
+#   1. Preflight checks (forge, avalanche, docker, jq)
+#   2. Build + install the Terraform provider  [skippable with --skip-build]
+#   3. terraform init (idempotent)
+#   4. terraform apply
+#   5. Start Blockscout in the background      [skippable with --no-explorer]
+#   6. Print connection details
+#
+# OCI flow (--oci):
+#   Prereq: cd terraform/oci && terraform apply  (Phase 1 — provisions OCI VM + L1)
+#   1. Preflight checks (forge, jq, ssh, terraform)
+#   2. Read ~/.claw1/claw1demobank-oci/network.json (scp'd by Phase 1)
+#   3. Open SSH tunnel 54320 -> remote RPC port
+#   4. Deploy ComplianceRegistry + DividendDistributor via forge create
+#   5. Print connection details
+
+set -euo pipefail
+
+REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")" && pwd))"
+TF_DIR="$REPO_ROOT/terraform"
+PROVIDER_DIR="$REPO_ROOT/terraform-provider-claw1"
+
+CLAW1_NAME="${CLAW1_NAME:-claw1demobank}"
+NETWORK_JSON="${CLAW1_DATA_DIR:-$HOME/.claw1}/$CLAW1_NAME/network.json"
+
+SKIP_BUILD=false
+NO_EXPLORER=false
+OCI_MODE=false
+for arg in "$@"; do
+  case "$arg" in
+    --skip-build)  SKIP_BUILD=true ;;
+    --no-explorer) NO_EXPLORER=true ;;
+    --oci)         OCI_MODE=true ;;
+    *) echo "Unknown argument: $arg"; exit 1 ;;
+  esac
+done
+
+# ── helpers ──────────────────────────────────────────────────────────────────
+
+step() { echo ""; echo "[$1] $2"; }
+die()  { echo ""; echo "ERROR: $*" >&2; exit 1; }
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# OCI flow (--oci): deploy contracts to OCI L1 via SSH tunnel
+# ═══════════════════════════════════════════════════════════════════════════════
+
+if [ "$OCI_MODE" = true ]; then
+  TF_DIR_OCI="$REPO_ROOT/terraform/oci"
+  OCI_NETWORK_JSON="$HOME/.claw1/claw1demobank-oci/network.json"
+  CONTRACTS_DIR="$REPO_ROOT/contracts"
+
+  step "1/5" "Preflight checks (OCI mode)"
+  command -v forge >/dev/null 2>&1 || die "forge not found. Install Foundry: https://getfoundry.sh"
+  command -v cast  >/dev/null 2>&1 || die "cast not found. Install Foundry: https://getfoundry.sh"
+  command -v jq    >/dev/null 2>&1 || die "jq not found."
+  command -v ssh   >/dev/null 2>&1 || die "ssh not found."
+  command -v terraform >/dev/null 2>&1 || die "terraform not found."
+  [ -f "$OCI_NETWORK_JSON" ] || die "OCI network.json not found at $OCI_NETWORK_JSON. Run: cd terraform/oci && terraform apply"
+  echo "  forge:     $(forge --version 2>&1 | head -1)"
+  echo "  network:   $OCI_NETWORK_JSON"
+
+  step "2/5" "Open SSH tunnel (local 54320 -> OCI RPC port)"
+  OCI_IP=$(terraform -chdir="$TF_DIR_OCI" output -raw oci_vm_ip 2>/dev/null) \
+    || die "Could not read oci_vm_ip. Run: cd terraform/oci && terraform apply"
+  SSH_KEY=$(terraform -chdir="$TF_DIR_OCI" output -raw ssh_private_key_path 2>/dev/null || echo "$HOME/.ssh/id_rsa")
+  OCI_RPC=$(jq -r .rpcUrl "$OCI_NETWORK_JSON")
+  REMOTE_PORT=$(echo "$OCI_RPC" | sed -nE 's#^http://127\.0\.0\.1:([0-9]+)/.*#\1#p')
+  RPC_PATH=$(echo "$OCI_RPC" | sed -nE 's#^http://127\.0\.0\.1:[0-9]+/(ext/.*)$#\1#p')
+  [ -n "$REMOTE_PORT" ] || die "Could not parse remote RPC port from $OCI_RPC"
+  [ -n "$RPC_PATH" ] || die "Could not parse RPC path from $OCI_RPC"
+  ACTIVE_RPC="http://127.0.0.1:54320/$RPC_PATH"
+
+  pkill -f "ssh.*54320" 2>/dev/null || true
+  sleep 1
+  ssh -f -N -o StrictHostKeyChecking=no \
+      -i "$SSH_KEY" \
+      -L "54320:127.0.0.1:${REMOTE_PORT}" "ubuntu@${OCI_IP}"
+  echo "  Tunnel: localhost:54320 -> ${OCI_IP}:${REMOTE_PORT}"
+
+  # Wait for tunnel to be ready
+  RPC_READY=false
+  for i in $(seq 1 15); do
+    if curl -sf -X POST -H "Content-Type: application/json" \
+       -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' \
+       "$ACTIVE_RPC" \
+       >/dev/null 2>&1; then
+      echo "  RPC ready."
+      RPC_READY=true
+      break
+    fi
+    sleep 2
+  done
+  [ "$RPC_READY" = true ] || die "SSH tunnel opened, but RPC did not respond at $ACTIVE_RPC"
+
+  DEPLOYER_KEY=$(jq -r .deployerPrivateKey "$OCI_NETWORK_JSON")
+  CHAIN_ID=$(jq -r .chainId "$OCI_NETWORK_JSON")
+  EWOQ_ADDR="0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"
+  [ -n "$DEPLOYER_KEY" ] && [ "$DEPLOYER_KEY" != "null" ] || die "Missing deployerPrivateKey in $OCI_NETWORK_JSON"
+  [ -n "$CHAIN_ID" ] && [ "$CHAIN_ID" != "null" ] || die "Missing chainId in $OCI_NETWORK_JSON"
+
+  step "3/5" "Verify TxAllowList admin role"
+  ROLE_HEX=$(cast call 0x0200000000000000000000000000000000000002 \
+    "readAllowList(address)(uint256)" "$EWOQ_ADDR" \
+    --rpc-url "$ACTIVE_RPC" 2>/dev/null) || die "readAllowList call failed at $ACTIVE_RPC"
+  ROLE_DEC=$((16#${ROLE_HEX#0x}))
+  [ "$ROLE_DEC" -eq 3 ] || die "Expected ewoq TxAllowList admin role 3, got $ROLE_DEC"
+  echo "  TxAllowList admin verified: $EWOQ_ADDR role=$ROLE_DEC"
+
+  step "4/5" "Deploy contracts via forge create"
+
+  echo "  Deploying ComplianceRegistry..."
+  CR_OUT=$(forge create "src/ComplianceRegistry.sol:ComplianceRegistry" \
+    --root "$CONTRACTS_DIR" \
+    --rpc-url "$ACTIVE_RPC" \
+    --private-key "$DEPLOYER_KEY" \
+    --broadcast \
+    --constructor-args "$CHAIN_ID" "$EWOQ_ADDR" "0x0000000000000000000000000000000000000000" "0" "demo" \
+    2>&1)
+  echo "$CR_OUT"
+  CR_ADDR=$(echo "$CR_OUT" | sed -nE 's/^Deployed to:[[:space:]]+(0x[a-fA-F0-9]{40}).*/\1/p' | head -1)
+  [ -z "$CR_ADDR" ] && die "Could not parse ComplianceRegistry address from forge output"
+
+  echo "  Deploying DividendDistributor..."
+  DD_OUT=$(forge create "src/DividendDistributor.sol:DividendDistributor" \
+    --root "$CONTRACTS_DIR" \
+    --rpc-url "$ACTIVE_RPC" \
+    --private-key "$DEPLOYER_KEY" \
+    --broadcast \
+    --constructor-args "0x0000000000000000000000000000000000000000" "0" \
+    2>&1)
+  echo "$DD_OUT"
+  DD_ADDR=$(echo "$DD_OUT" | sed -nE 's/^Deployed to:[[:space:]]+(0x[a-fA-F0-9]{40}).*/\1/p' | head -1)
+  [ -z "$DD_ADDR" ] && die "Could not parse DividendDistributor address from forge output"
+
+  # Update local OCI network.json for dashboard/scripts. Keep the remote RPC as metadata
+  # and point rpcUrl at the active local SSH tunnel.
+  NOW=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+  UPDATED=$(jq --arg name1 "ComplianceRegistry" --arg addr1 "$CR_ADDR" --arg ts1 "$NOW" \
+               --arg name2 "DividendDistributor" --arg addr2 "$DD_ADDR" --arg ts2 "$NOW" \
+               --arg activeRpc "$ACTIVE_RPC" --arg remoteRpc "$OCI_RPC" --arg vmIp "$OCI_IP" \
+    '.rpcUrl = $activeRpc
+     | .oci.remoteRpcUrl = $remoteRpc
+     | .oci.vmIp = $vmIp
+     | .contracts = [
+       {"name": $name1, "address": $addr1, "deployedAt": $ts1},
+       {"name": $name2, "address": $addr2, "deployedAt": $ts2}
+     ]' "$OCI_NETWORK_JSON")
+  echo "$UPDATED" > "$OCI_NETWORK_JSON"
+
+  step "5/5" "OCI deployment complete"
+  echo ""
+  echo "════════════════════════════════════════════"
+  echo "  OCI Deployment complete"
+  echo "════════════════════════════════════════════"
+  echo ""
+  echo "  OCI VM IP:           $OCI_IP"
+  echo "  SSH tunnel:          localhost:54320"
+  echo "  L1 RPC (tunneled):   $ACTIVE_RPC"
+  echo "  Chain ID:            $CHAIN_ID"
+  echo "  ComplianceRegistry:  $CR_ADDR"
+  echo "  DividendDistributor: $DD_ADDR"
+  echo ""
+  echo "  Verify:"
+  echo "    cast code $CR_ADDR --rpc-url $ACTIVE_RPC"
+  echo ""
+  exit 0
+fi
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# On-prem flow (default)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+# ── 1. Preflight ─────────────────────────────────────────────────────────────
+
+step "1/5" "Preflight checks"
+
+command -v forge      >/dev/null 2>&1 || die "forge not found. Install Foundry: https://getfoundry.sh"
+command -v avalanche  >/dev/null 2>&1 || die "avalanche not found. Install: https://docs.avax.network/tooling/avalanche-cli"
+command -v terraform  >/dev/null 2>&1 || die "terraform not found. Install: https://developer.hashicorp.com/terraform/install"
+command -v jq         >/dev/null 2>&1 || die "jq not found. Install: apt install jq / brew install jq"
+command -v docker     >/dev/null 2>&1 || die "docker not found. Install Docker Desktop or Docker Engine"
+
+if avalanche network status >/dev/null 2>&1; then
+  echo ""
+  echo "  A local Avalanche network is already running."
+  echo "  If you want a clean deploy, run:  avalanche network clean"
+  echo "  To redeploy on top of it, this is fine — continuing."
+fi
+
+echo "  forge:      $(forge --version 2>&1 | head -1)"
+echo "  avalanche:  $(avalanche --version 2>/dev/null | head -1)"
+echo "  terraform:  $(terraform version -json 2>/dev/null | jq -r .terraform_version 2>/dev/null || terraform version | head -1)"
+echo "  docker:     $(docker --version)"
+
+# ── 2. Build + install the Terraform provider ────────────────────────────────
+
+if [ "$SKIP_BUILD" = false ]; then
+  step "2/5" "Build + install Terraform provider"
+  make -C "$PROVIDER_DIR" install
+  # Lock file checksum is now stale — remove it so terraform init regenerates it.
+  rm -f "$TF_DIR/.terraform.lock.hcl"
+  echo "  Provider installed."
+else
+  step "2/5" "Build + install Terraform provider  [skipped]"
+fi
+
+# ── 3. terraform init ────────────────────────────────────────────────────────
+
+step "3/5" "terraform init"
+terraform -chdir="$TF_DIR" init -upgrade -input=false
+
+# ── 4. terraform apply ───────────────────────────────────────────────────────
+
+step "4/5" "terraform apply"
+
+# Guard: network.json exists but the network is not running means a prior
+# destroy left stale state. Remove it so the Create function does a full deploy.
+if [ -f "$NETWORK_JSON" ] && ! avalanche network status >/dev/null 2>&1; then
+  echo "  Stale network.json detected (network not running) — removing."
+  rm -f "$NETWORK_JSON"
+fi
+
+echo ""
+terraform -chdir="$TF_DIR" apply -auto-approve
+
+# ── 5. Start Blockscout ──────────────────────────────────────────────────────
+
+if [ "$NO_EXPLORER" = false ]; then
+  step "5/5" "Starting Blockscout block explorer"
+
+  if [ ! -f "$NETWORK_JSON" ]; then
+    echo "  WARNING: $NETWORK_JSON not found — skipping Blockscout."
+    echo "  Start it manually later with:  ./docker/blockscout/start.sh"
+  else
+    "$REPO_ROOT/docker/blockscout/start.sh"
+  fi
+else
+  step "5/5" "Blockscout  [skipped]"
+fi
+
+# ── Summary ──────────────────────────────────────────────────────────────────
+
+echo ""
+echo "════════════════════════════════════════════"
+echo "  Deployment complete"
+echo "════════════════════════════════════════════"
+echo ""
+
+if [ -f "$NETWORK_JSON" ]; then
+  RPC_URL=$(jq -r .rpcUrl "$NETWORK_JSON" 2>/dev/null || echo "")
+  CHAIN_ID=$(jq -r .chainId "$NETWORK_JSON" 2>/dev/null || echo "")
+  COMPLIANCE_ADDR=$(jq -r '.contracts[] | select(.name == "ComplianceRegistry") | .address' "$NETWORK_JSON" 2>/dev/null || echo "")
+  DIVIDEND_ADDR=$(jq -r '.contracts[] | select(.name == "DividendDistributor") | .address' "$NETWORK_JSON" 2>/dev/null || echo "")
+
+  [ -n "$RPC_URL" ]         && echo "  L1 RPC:              $RPC_URL"
+  [ -n "$CHAIN_ID" ]        && echo "  Chain ID:            $CHAIN_ID"
+  [ -n "$COMPLIANCE_ADDR" ] && echo "  ComplianceRegistry:  $COMPLIANCE_ADDR"
+  [ -n "$DIVIDEND_ADDR" ]   && echo "  DividendDistributor: $DIVIDEND_ADDR"
+fi
+
+if [ "$NO_EXPLORER" = false ]; then
+  echo ""
+  echo "  Block explorer:  http://localhost:3001  (~60s to index)"
+  echo "  Backend API:     http://localhost:4000"
+fi
+
+echo ""
+echo "  Verify contract:"
+echo "    cast code \$(terraform -chdir=terraform output -raw compliance_registry_address) \\"
+echo "      --rpc-url \$(terraform -chdir=terraform output -raw l1_rpc_url)"
+echo ""
