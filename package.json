@@ -18,13 +18,5 @@
     "react": "latest",
     "react-dom": "latest"
   },
-  "devDependencies": {},
-  "pnpm": {
-    "overrides": {
-      "@tanstack/react-router@1.169.5": "1.170.3",
-      "@tanstack/react-router@1.169.8": "1.170.3",
-      "@tanstack/router-core@1.169.5": "1.170.3",
-      "@tanstack/router-core@1.169.8": "1.170.3"
-    }
-  }
+  "devDependencies": {}
 }

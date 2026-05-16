@@ -26,6 +26,7 @@ terraform-provider-claw1/terraform-provider-claw1_*
 
 # Node / pnpm
 node_modules/
+dist/
 dashboard/.next/
 dashboard/dist/
 .pnpm-store/
