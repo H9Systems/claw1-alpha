@@ -1,169 +1,169 @@
-# Business Model & Market Context
+# Modelo de Negocio y Contexto de Mercado
 
-> This document is for internal reference and AI agent context. It does not constitute a prospectus, investor disclosure, or commitment of any kind. Market figures are estimates based on publicly available data; do not rely on them for financial decisions.
-
----
-
-## What Claw1 Is
-
-Claw1 is a compliance-as-code platform for regulated financial institutions in Latin America. It deploys a private, permissioned Avalanche L1 with protocol-enforced KYC/AML controls and an immutable on-chain compliance evidence registry — from a single `terraform apply`.
-
-The infrastructure is open source (Apache 2.0). The business is selling audited, jurisdiction-specific compliance contract libraries that financial institutions would otherwise spend months building and auditing independently.
+> Este documento es de referencia interna y contexto para agentes de IA. No constituye un prospecto, divulgación para inversores ni compromiso de ningún tipo. Las cifras de mercado son estimaciones basadas en datos públicos; no las uses para decisiones financieras.
 
 ---
 
-## The Problem
+## Qué es Claw1
 
-Regulated financial institutions in Latin America (particularly those operating under GAFI/FATF member state frameworks) cannot use public blockchain infrastructure for investor data, shareholder registries, or dividend distribution:
+Claw1 es una plataforma de compliance-as-code para instituciones financieras reguladas en América Latina. Despliega una Avalanche L1 privada y permisionada con controles KYC/AML a nivel de protocolo y un registro inmutable de evidencias de cumplimiento on-chain — desde un solo `terraform apply`.
 
-1. **Data sovereignty**: Depositor/investor data must remain under the institution's direct control — which rules out AWS, Azure, and most managed blockchain services.
-2. **Identity enforcement**: KYC/AML/KYT requirements mandate verified-identity enforcement at every transaction — which rules out permissionless public chains.
-3. **Auditability**: Regulators require direct-query access to compliance records, not dashboards or document requests.
-
-The current alternative is raw `avalanche-cli` + manual scripts — nothing a compliance team can version, audit, or repeat. There is no infrastructure product that addresses all three constraints simultaneously with the IaC workflows enterprise infrastructure teams already use.
+La infraestructura es de código abierto (Apache 2.0). El negocio es vender bibliotecas de contratos de cumplimiento auditados y específicos por jurisdicción que las instituciones financieras tardarían meses en construir y auditar de forma independiente.
 
 ---
 
-## Ideal Customer Profile (ICP)
+## El Problema
 
-**Primary ICP**: The infrastructure or compliance lead at a LATAM financial institution that:
-- Holds a financial services license in Mexico (CNBV), Panama (SMV/SBP), Colombia (SFC), or Brazil (CVM/BCB)
-- Runs dividend distribution, shareholder registry, or fractional ownership workflows on spreadsheets today
-- Has been told "no" by legal on AvaCloud, AWS, or Azure blockchain services due to data sovereignty requirements
-- Has internal engineers who know Terraform or are willing to learn
-- Operates an existing Oracle Cloud OCI tenancy or is evaluating one
+Las instituciones financieras reguladas en América Latina (particularmente las que operan bajo los marcos de los estados miembros GAFI/FATF) no pueden usar infraestructura blockchain pública para datos de inversores, registros de accionistas o distribución de dividendos:
 
-**Who does NOT fit** right now:
-- DeFi protocols (no compliance constraint, no IaC habit)
-- US/EU enterprises (different regulatory framework, different blockers)
-- Layer 1 natives (already solved their infrastructure problem)
-- Institutions that need a public chain for liquidity above all else
+1. **Soberanía de datos**: Los datos de depositantes/inversores deben permanecer bajo el control directo de la institución — lo que descarta AWS, Azure y la mayoría de los servicios blockchain gestionados.
+2. **Aplicación de identidad**: Los requisitos KYC/AML/KYT exigen la verificación de identidad en cada transacción — lo que descarta las cadenas públicas sin permisos.
+3. **Auditabilidad**: Los reguladores requieren acceso de consulta directa a los registros de cumplimiento, no dashboards ni solicitudes de documentos.
+
+La alternativa actual es `avalanche-cli` en crudo + scripts manuales — nada que un equipo de cumplimiento pueda versionar, auditar o repetir. No existe un producto de infraestructura que aborde las tres restricciones simultáneamente con los flujos de trabajo IaC que los equipos de infraestructura empresarial ya utilizan.
 
 ---
 
-## Business Model
+## Perfil de Cliente Ideal (ICP)
 
-### What is Free (Apache 2.0)
+**ICP Principal**: El líder de infraestructura o cumplimiento en una institución financiera LATAM que:
+- Tiene licencia de servicios financieros en México (CNBV), Panamá (SMV/SBP), Colombia (SFC) o Brasil (CVM/BCB)
+- Ejecuta hoy distribución de dividendos, registro de accionistas o flujos de propiedad fraccionaria en hojas de cálculo
+- Ha recibido un "no" de legal con AvaCloud, AWS o servicios blockchain Azure por requisitos de soberanía de datos
+- Tiene ingenieros internos que conocen Terraform o están dispuestos a aprender
+- Opera un tenancy Oracle Cloud OCI existente o lo está evaluando
 
-- `terraform-provider-claw1` — the Go Terraform provider
-- `terraform/` — on-prem configuration
-- `terraform/oci/` — Oracle Cloud (OCI) configuration
-- `DividendDistributor.sol` + `ComplianceRegistry.sol` — reference contracts with Foundry tests
-- Sovereignty Receipt dashboard
-- All tooling and CLI integrations
-
-The open source layer is the distribution mechanism and trust-builder. Any infrastructure team can evaluate and run the full stack for free.
-
-### What Is Paid (Post-Launch)
-
-**Primary — Compliance Contract Library (enterprise license per deployment)**
-
-Pre-audited, jurisdiction-specific Solidity contracts for LATAM financial regulation. What the customer buys:
-
-- Months of regulatory research per jurisdiction, translated into HCL-configurable contracts
-- External smart contract audit (in progress post-launch)
-- Jurisdiction-specific `ComplianceRegistry` templates that auto-configure for CNBV Mexico, SMV Panama, CVM Brazil, SFC Colombia
-- Ongoing updates as regulations change
-- The on-chain evidence trail that makes periodic regulator filings self-generating from chain data
-
-Pricing target: $15,000–$50,000/year enterprise license (to be validated once audit costs are known). Price anchors against the cost of an institution building and auditing this independently: $50,000–$200,000 in legal research + external audit fees.
-
-**Secondary — Professional Services**
-
-- Deploying and hardening Claw1 in a production OCI tenancy
-- Support SLA (4h response, migration support, incident management)
-- Custom contract development for jurisdiction-specific requirements not covered by the standard library
-
-First professional services engagements: $5,000–$15,000 scoped deployment + training. Support retainer: $2,000/month.
+**Quién NO encaja** ahora:
+- Protocolos DeFi (sin restricción de cumplimiento, sin hábito IaC)
+- Empresas de EE.UU./Europa (marco regulatorio diferente, bloqueos diferentes)
+- Nativos de Layer 1 (ya resolvieron su problema de infraestructura)
+- Instituciones que necesitan una cadena pública para liquidez por encima de todo
 
 ---
 
-## Revenue Assumptions
+## Modelo de Negocio
 
-| Scenario | Customers Year 1 | ARR |
-|----------|-----------------|-----|
-| Conservative | 1 anchor customer | $50k |
-| Base | 3 enterprise licenses + 2 PS engagements | $200k |
-| Upside | 8 enterprise licenses + recurring support | $600k |
+### Qué es gratuito (Apache 2.0)
 
-Year 1 is about learning what customers actually need from the paid tier, not optimizing ARR. The milestone that unlocks fundraising (if pursued) is: one LATAM financial institution running `terraform apply` in production and paying for the contract library.
+- `terraform-provider-claw1` — el proveedor Go Terraform
+- `terraform/` — configuración on-prem
+- `terraform/oci/` — configuración Oracle Cloud (OCI)
+- `DividendDistributor.sol` + `ComplianceRegistry.sol` — contratos de referencia con tests Foundry
+- Sovereignty Receipt (TUI)
+- Todas las herramientas e integraciones CLI
 
----
+La capa open source es el mecanismo de distribución y generador de confianza. Cualquier equipo de infraestructura puede evaluar y ejecutar el stack completo de forma gratuita.
 
-## Competitive Landscape
+### Qué es de pago (post-lanzamiento)
 
-| Competitor | What They Offer | Why Customers Can't Use Them |
-|-----------|----------------|------------------------------|
-| AvaCloud (Ava Labs) | Managed Avalanche L1 | Public cloud infrastructure; fails data sovereignty requirements |
-| Oracle Blockchain Platform | Hyperledger Fabric | Not EVM; no Solidity; no DeFi interoperability |
-| Ankr / QuickNode / Moralis | Shared chains / RPCs | Shared infrastructure; no custom L1; no compliance contracts |
-| Raw `avalanche-cli` | DIY L1 bootstrapping | No Terraform; no idempotency; no compliance contracts; no operator story |
-| Hyperledger Fabric self-hosted | Private permissioned chain | Not EVM; significant operational complexity; no Solidity ecosystem |
+**Principal — Biblioteca de Contratos de Cumplimiento (licencia enterprise por despliegue)**
 
-**The real competitor is Hyperledger Fabric** self-hosted inside an OCI tenancy. Enterprises use it because it was historically the only FATF-compliant, data-sovereign option. The Claw1 pitch: everything Hyperledger gives you for compliance, plus EVM and Solidity, plus simpler operations, inside your existing OCI tenancy.
+Contratos Solidity pre-auditados y específicos por jurisdicción para regulación financiera LATAM. Lo que el cliente compra:
 
-**The moat is not the IaC wrapper.** Any DevOps engineer can write `null_resource + shell` to call `avalanche-cli`. The moat is:
-1. The compliance contract library: regulatory research + external audit + ongoing updates
-2. The `ComplianceRegistry` evidence trail: once an institution's compliance history lives on the chain, switching means reconstructing that trail from scratch ($50k–$200k and months of audit work)
-3. Jurisdiction-specific institutional knowledge encoded into HCL-configurable contracts
+- Meses de investigación regulatoria por jurisdicción, traducida en contratos configurables en HCL
+- Auditoría externa de contratos inteligentes (en proceso post-lanzamiento)
+- Plantillas de `ComplianceRegistry` específicas por jurisdicción que se auto-configuran para CNBV México, SMV Panamá, CVM Brasil, SFC Colombia
+- Actualizaciones continuas cuando cambian las regulaciones
+- El rastro de evidencias on-chain que hace que los reportes regulatorios periódicos se generen automáticamente desde datos de la cadena
 
----
+Precio objetivo: $15,000–$50,000/año licencia enterprise (a validar una vez que se conozcan los costos de auditoría). Ancla de precio contra el costo de que la institución lo construya y audite de forma independiente: $50,000–$200,000 en investigación legal + honorarios de auditoría externa.
 
-## Distribution Strategy
+**Secundario — Servicios Profesionales**
 
-**Phase 0 (now)**: Direct outreach only. No inbound funnel. Target infrastructure and compliance leads at LATAM financial institutions. The ICP is too narrow for bottom-up PLG in year one.
+- Desplegar y fortalecer Claw1 en un tenancy OCI de producción
+- SLA de soporte (4h de respuesta, soporte de migración, gestión de incidentes)
+- Desarrollo de contratos personalizados para requisitos específicos por jurisdicción no cubiertos por la biblioteca estándar
 
-**Phase 1 (weeks 2–8)**: Design partner. One institution runs `terraform apply` in their own infrastructure. Get a quote for the README. Learn what the paid tier needs.
-
-**Phase 2 (weeks 4–6)**: Terraform Registry. Publish `h9-systems/claw1` so `source = "h9-systems/claw1"` works from any `main.tf` without building from source. One blog post: "How we deployed a private Avalanche L1 with 47 lines of HCL." Submit to Avalanche ecosystem newsletter.
-
-**Phase 3 (weeks 8–16)**: First paid engagement. Target: one institution pays for professional services or a compliance contract license.
-
-**Channel: Oracle OCI partner ecosystem.** The OCI Terraform configuration is a deliberate Oracle relationship-builder. Target the OCI ISV Partner Network as soon as there is a live OCI deployment reference. Oracle has LatAm financial services accounts who need exactly this product; being on their ISV partner list is a referral channel.
-
-**Channel: Avalanche ecosystem.** Ava Labs has an ecosystem fund and business development team. A compliance-focused L1 provider using their toolchain fits their enterprise narrative. Target an ecosystem grant or co-marketing opportunity once there is a live customer reference.
-
-**Panama wedge**: Panama has no blockchain regulation today. Draft Bill 326 (pending, ~12–18 months) will impose mandatory FATF-compliant KYC/AML on VASPs under SMV. Panamanian crypto exchanges, digital brokers, or banks beginning to deal in digital assets are pre-compliance infrastructure buyers — they need this before they're required to have it.
+Primeros compromisos de servicios profesionales: $5,000–$15,000 despliegue + entrenamiento. Retainer de soporte: $2,000/mes.
 
 ---
 
-## Key Metrics (First 90 Days)
+## Supuestos de Ingresos
 
-| Metric | Definition | Target |
-|--------|-----------|--------|
-| Live OCI deployment | `terraform apply` on real OCI completes without manual steps | Week 1 |
-| Design partner identified | One institution agrees to evaluate in their environment | Week 8 |
-| Design partner deployment | `terraform apply` runs in their OCI tenancy | Week 12 |
-| Terraform Registry publish | `source = "h9-systems/claw1"` works | Week 4–6 |
-| Oracle ISV intro | Introduction to OCI financial services team | Week 4 |
-| First paid engagement signed | Contract for PS or compliance library license | Week 8–16 |
+| Escenario | Clientes Año 1 | ARR |
+|----------|----------------|-----|
+| Conservador | 1 cliente ancla | $50k |
+| Base | 3 licencias enterprise + 2 compromisos PS | $200k |
+| Optimista | 8 licencias enterprise + soporte recurrente | $600k |
 
-Revenue is not the 90-day metric. One institution deploying in production and calling it repeatable is the milestone.
+El año 1 se trata de aprender qué necesitan realmente los clientes del nivel pago, no de optimizar el ARR. El hito que desbloquea fundraising (si se busca) es: una institución financiera LATAM ejecutando `terraform apply` en producción y pagando por la biblioteca de contratos.
 
 ---
 
-## Risks
+## Panorama Competitivo
 
-**Technical risk**: The compliance contract library (ERC-3643 + eERC + ICTT bridge) is more complex than the hackathon MVP. External smart contract audit is a prerequisite for the paid tier; audit cost and timeline are unknowns.
+| Competidor | Qué ofrecen | Por qué los clientes no pueden usarlos |
+|-----------|------------|----------------------------------------|
+| AvaCloud (Ava Labs) | Avalanche L1 gestionada | Infraestructura en nube pública; falla requisitos de soberanía de datos |
+| Oracle Blockchain Platform | Hyperledger Fabric | No EVM; sin Solidity; sin interoperabilidad DeFi |
+| Ankr / QuickNode / Moralis | Cadenas/RPCs compartidas | Infraestructura compartida; sin L1 personalizada; sin contratos de cumplimiento |
+| `avalanche-cli` puro | Bootstrap DIY de L1 | Sin Terraform; sin idempotencia; sin contratos de cumplimiento; sin historia de operador |
+| Hyperledger Fabric self-hosted | Cadena permisionada privada | No EVM; complejidad operativa significativa; sin ecosistema Solidity |
 
-**Regulatory risk**: LATAM regulation moves faster than expected in both directions. A friendly regulatory change (explicit EVM token framework) would accelerate adoption. An adverse change (blanket tokenization ban) would narrow the market. Panama Draft Bill 326 is the most immediate regulatory trigger.
+**El competidor real es Hyperledger Fabric** self-hosted dentro de un tenancy OCI. Las empresas lo usan porque históricamente era la única opción disponible conforme a FATF y soberana en datos. El pitch de Claw1: todo lo que Hyperledger da para cumplimiento, más EVM y Solidity, más operaciones más simples, dentro de tu tenancy OCI existente.
 
-**GTM risk**: The ICP is senior infrastructure/compliance decision-makers at financial institutions. Sales cycles are long (3–12 months). Year one depends on a small number of high-value relationships, not volume.
-
-**Dependency risk**: The product is built on Avalanche L1 technology (Ava Labs), Oracle Cloud (OCI), and Terraform (HashiCorp). A major change to any of these platforms — pricing, API, licensing — has a direct impact on the product.
+**El foso no es el wrapper IaC.** Cualquier ingeniero DevOps puede escribir `null_resource + shell` para llamar `avalanche-cli`. El foso es:
+1. La biblioteca de contratos de cumplimiento: investigación regulatoria + auditoría externa + actualizaciones continuas
+2. El rastro de evidencias `ComplianceRegistry`: una vez que el historial de cumplimiento de una institución vive en la cadena, cambiar significa reconstruir ese rastro desde cero ($50k–$200k y meses de trabajo de auditoría)
+3. Conocimiento institucional específico por jurisdicción codificado en contratos configurables en HCL
 
 ---
 
-## What Agents Should Know
+## Estrategia de Distribución
 
-When making product decisions, treat these as constraints:
+**Fase 0 (ahora)**: Alcance directo únicamente. Sin embudo de entrada. Apuntar a líderes de infraestructura y cumplimiento en instituciones financieras LATAM. El ICP es demasiado estrecho para PLG bottom-up en el año uno.
 
-1. **Compliance is the product, not a feature.** Every engineering decision that touches the compliance layer — TxAllowList, KYC verification, ComplianceRegistry, bridge directionality — is a product decision that affects the business proposition. Do not cut compliance corners to ship faster.
+**Fase 1 (semanas 2–8)**: Design partner. Una institución ejecuta `terraform apply` en su propia infraestructura. Obtener una cita para el README. Aprender qué necesita el nivel pago.
 
-2. **The evidence trail is the moat.** `ComplianceRegistry` records must be immutable and queryable. Don't redesign the data model without understanding what a CNBV auditor will query.
+**Fase 2 (semanas 4–6)**: Terraform Registry. Publicar `h9-systems/claw1` para que `source = "h9-systems/claw1"` funcione desde cualquier `main.tf` sin compilar desde el código fuente. Un blog post: "Cómo desplegamos una Avalanche L1 privada con 47 líneas de HCL."
 
-3. **The Terraform provider is the distribution mechanism.** Anything that breaks `terraform apply` or makes it more complex breaks the product. Minimize required config; maximize what can be inferred or defaulted safely.
+**Fase 3 (semanas 8–16)**: Primer compromiso pago. Objetivo: una institución paga por servicios profesionales o una licencia de contrato de cumplimiento.
 
-4. **The ICP pays for not having to hire a blockchain lawyer.** Every jurisdiction-specific compliance decision encoded into the product (default config, UI warnings, TxAllowList defaults) replaces work the customer would otherwise pay a lawyer to do. Make those defaults defensible.
+**Canal: ecosistema OCI de Oracle.** La configuración OCI Terraform es un constructor deliberado de relaciones con Oracle. Apuntar a OCI ISV Partner Network tan pronto como haya una referencia de despliegue OCI en vivo.
 
-5. **OCI first, then anywhere.** The Oracle relationship is the primary GTM channel. OCI deployment must be first-class, not a bolt-on.
+**Canal: ecosistema Avalanche.** Ava Labs tiene un fondo de ecosistema y equipo de desarrollo de negocios. Un proveedor de L1 enfocado en cumplimiento usando su toolchain encaja en su narrativa empresarial.
+
+**Cuña Panamá**: Panamá no tiene regulación blockchain hoy. El Proyecto de Ley 326 (pendiente, ~12–18 meses) impondrá KYC/AML conforme a FATF obligatorio sobre VASPs bajo SMV. Los exchanges de cripto panameños, brokers digitales o bancos comenzando a operar con activos digitales son compradores de infraestructura pre-cumplimiento.
+
+---
+
+## Métricas Clave (Primeros 90 Días)
+
+| Métrica | Definición | Objetivo |
+|--------|-----------|----------|
+| Despliegue OCI en vivo | `terraform apply` en OCI real completa sin pasos manuales | Semana 1 |
+| Design partner identificado | Una institución acepta evaluar en su entorno | Semana 8 |
+| Despliegue design partner | `terraform apply` corre en su tenancy OCI | Semana 12 |
+| Publicación Terraform Registry | `source = "h9-systems/claw1"` funciona | Semanas 4–6 |
+| Intro Oracle ISV | Introducción al equipo OCI de servicios financieros | Semana 4 |
+| Primer compromiso pago firmado | Contrato PS o licencia de biblioteca de cumplimiento | Semanas 8–16 |
+
+Los ingresos no son la métrica de 90 días. Una institución desplegando en producción y diciéndolo repetible es el hito.
+
+---
+
+## Riesgos
+
+**Riesgo técnico**: La biblioteca de contratos de cumplimiento (ERC-3643 + eERC + ICTT bridge) es más compleja que el MVP del hackathon. La auditoría externa de contratos inteligentes es un prerequisito para el nivel pago; el costo y el cronograma de auditoría son incógnitas.
+
+**Riesgo regulatorio**: La regulación LATAM se mueve más rápido de lo esperado en ambas direcciones. Un cambio regulatorio favorable (marco explícito de tokens EVM) aceleraría la adopción. Un cambio adverso (prohibición general de tokenización) reduciría el mercado. El Proyecto de Ley 326 de Panamá es el detonante regulatorio más inmediato.
+
+**Riesgo GTM**: El ICP son tomadores de decisiones seniors de infraestructura/cumplimiento en instituciones financieras. Los ciclos de ventas son largos (3–12 meses). El año uno depende de un pequeño número de relaciones de alto valor, no de volumen.
+
+**Riesgo de dependencia**: El producto está construido sobre tecnología Avalanche L1 (Ava Labs), Oracle Cloud (OCI) y Terraform (HashiCorp). Un cambio importante en cualquiera de estas plataformas tiene un impacto directo en el producto.
+
+---
+
+## Qué Deben Saber los Agentes
+
+Al tomar decisiones de producto, tratar estos puntos como restricciones:
+
+1. **El cumplimiento es el producto, no una característica.** Cada decisión de ingeniería que toca la capa de cumplimiento es una decisión de producto que afecta la propuesta de negocio. No sacrifiques el cumplimiento para entregar más rápido.
+
+2. **El rastro de evidencias es el foso.** Los registros de `ComplianceRegistry` deben ser inmutables y consultables. No rediseñes el modelo de datos sin entender qué consultará un auditor CNBV.
+
+3. **El proveedor Terraform es el mecanismo de distribución.** Cualquier cosa que rompa `terraform apply` o lo haga más complejo rompe el producto.
+
+4. **El ICP paga por no tener que contratar un abogado blockchain.** Cada decisión de cumplimiento específica por jurisdicción codificada en el producto reemplaza trabajo que el cliente de otra forma pagaría a un abogado.
+
+5. **OCI primero, luego cualquier lugar.** La relación Oracle es el canal GTM principal. El despliegue OCI debe ser de primera clase, no un complemento.

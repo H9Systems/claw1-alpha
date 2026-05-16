@@ -1,222 +1,197 @@
-# Regulatory Context
+# Contexto Regulatorio
 
-> **Disclaimer**: Nothing in this document constitutes legal advice, regulatory guidance, or any official position. This is an internal reference document for engineering and product decisions — a starting point for understanding the regulatory environment, not a substitute for qualified legal counsel. Regulations change. Consult a licensed attorney in each relevant jurisdiction before making any compliance, product, or business decision.
-
----
-
-## Purpose
-
-This document maps the regulatory landscape that shapes every product decision in Claw1. It exists so that engineers and AI agents working on this codebase understand the *why* behind specific technical choices — why TxAllowList exists at the network layer, why ComplianceRegistry is immutable, why the bridge directionality is asymmetric, why KYC is pluggable rather than opinionated.
-
-When a product decision touches compliance, check this document first. The constraints are real even when they feel arbitrary.
+> **Aviso**: Nada en este documento constituye asesoramiento legal, orientación regulatoria ni ninguna posición oficial. Es un documento de referencia interna para decisiones de ingeniería y producto — un punto de partida para entender el entorno regulatorio, no un sustituto de asesoramiento legal calificado. Las regulaciones cambian. Consulta a un abogado con licencia en cada jurisdicción relevante antes de tomar cualquier decisión de cumplimiento, producto o negocio.
 
 ---
 
-## The Core Regulatory Tension
+## Propósito
 
-LATAM regulated financial institutions want the benefits of blockchain infrastructure (programmable settlement, transparent audit trails, automation of compliance workflows) but face two hard constraints:
+Este documento mapea el panorama regulatorio que da forma a cada decisión de producto en Claw1. Existe para que los ingenieros y agentes de IA que trabajan en este código base entiendan el *porqué* detrás de elecciones técnicas específicas — por qué existe TxAllowList en la capa de red, por qué ComplianceRegistry es inmutable, por qué la directionalidad del bridge es asimétrica, por qué KYC es enchufable en lugar de dogmático.
 
-1. **Data sovereignty**: Depositor/investor data cannot leave the institution's control — which rules out shared public chains and most cloud-hosted blockchain services.
-2. **Identity enforcement**: KYC/AML/KYT requirements mandate that every token transfer involves a verified identity — which rules out permissionless public chains.
-
-Claw1's architecture (private L1 + TxAllowList + KYC-gated contracts + on-chain registry) exists specifically to satisfy both constraints simultaneously. Every technical choice flows from this tension.
+Cuando una decisión de producto toca el cumplimiento, revisa este documento primero. Las restricciones son reales aunque se sientan arbitrarias.
 
 ---
 
-## FATF / GAFI Framework
+## La Tensión Regulatoria Central
 
-**What it is**: FATF (Financial Action Task Force), known as GAFI in Spanish (*Grupo de Acción Financiera Internacional*), is the global standard-setter for anti-money laundering (AML) and counter-terrorism financing (CFT). Member countries are expected to implement FATF Recommendations in national law.
+Las instituciones financieras reguladas LATAM quieren los beneficios de la infraestructura blockchain (liquidación programable, rastros de auditoría transparentes, automatización de flujos de trabajo de cumplimiento) pero enfrentan dos restricciones duras:
 
-**Why it matters for Claw1**:
-- FATF Recommendation 16 (the "Travel Rule") requires VASPs to pass originator and beneficiary information with virtual asset transfers. Any token transfer on a compliant L1 must carry this information.
-- FATF Guidance on Virtual Assets (2021, updated 2023) classifies most token issuance activities as VASP operations, triggering KYC/AML obligations.
-- FATF Recommendation 15 requires countries to regulate VASPs under national law. Latin American FATF member states are implementing this at varying speeds.
+1. **Soberanía de datos**: Los datos de depositantes/inversores no pueden salir del control de la institución — lo que descarta cadenas públicas compartidas y la mayoría de los servicios blockchain alojados en la nube.
+2. **Aplicación de identidad**: Los requisitos KYC/AML/KYT exigen que cada transferencia de tokens involucre una identidad verificada — lo que descarta las cadenas públicas sin permisos.
 
-**Engineering implications**:
-- `IKYCVerifier` is not optional — it's the mechanism by which FATF Rec. 15 identity requirements attach to token transfers.
-- The `ComplianceRegistry` records KYC verifier address, KYC claim ID, jurisdiction, and timestamp immutably — this is the audit artifact that satisfies FATF record-keeping requirements.
-- The FATF Travel Rule is NOT currently implemented in Claw1. For production use, the `DividendDistributor` or any future token contract must include originator/beneficiary data in transfer metadata. This is a known gap.
+La arquitectura de Claw1 (L1 privada + TxAllowList + contratos KYC-gated + registro on-chain) existe específicamente para satisfacer ambas restricciones simultáneamente. Cada elección técnica fluye de esta tensión.
 
 ---
 
-## Country-Specific Regulatory Context
+## Marco FATF / GAFI
 
-### Mexico — CNBV
+**Qué es**: FATF (Financial Action Task Force), conocido en español como GAFI (*Grupo de Acción Financiera Internacional*), es el establecedor global de estándares para lucha contra el lavado de dinero (AML) y financiamiento del terrorismo (CFT). Se espera que los países miembros implementen las Recomendaciones FATF en su legislación nacional.
 
-**Regulator**: Comisión Nacional Bancaria y de Valores (CNBV)  
-**Relevant law**: Ley para Regular las Instituciones de Tecnología Financiera (Ley Fintech, 2018); Circular Única de Fondeo Colectivo
+**Por qué importa para Claw1**:
+- La Recomendación FATF 16 (la "Regla de Viaje") requiere que los VASPs pasen información del originador y beneficiario con las transferencias de activos virtuales.
+- La Guía FATF sobre Activos Virtuales (2021, actualizada 2023) clasifica la mayoría de las actividades de emisión de tokens como operaciones VASP, desencadenando obligaciones KYC/AML.
+- La Recomendación FATF 15 requiere que los países regulen los VASPs bajo ley nacional. Los estados miembros FATF de América Latina están implementando esto a velocidades variables.
 
-**What CNBV governs for Claw1 use cases**:
-- Crowdfunding platforms (*instituciones de financiamiento colectivo*) must be CNBV-licensed. They may facilitate equity, debt, or co-ownership investments (not securities in the traditional sense) under specific caps and disclosure requirements.
-- CNBV-licensed platforms must maintain investor identity records and transaction logs. These are the compliance artifacts that `ComplianceRegistry` + `DividendDistributor` events generate on-chain.
-- CNBV has not issued specific guidance on tokenized securities as of mid-2026. The working assumption is that tokenized equity on a private L1 falls under the same Ley Fintech framework as conventional crowdfunding — identity-gated, auditable, and under CNBV oversight.
-- Mexico's FATF position: Mexico held the FATF Presidency through June 2026. Expect aggressive FATF standard enforcement.
-
-**Engineering implications**:
-- `jurisdiction = "CNBV-MX"` in `ComplianceRegistry` is the identifier that maps this deployment to Mexican law.
-- Any dividend distribution event emitted by `DividendDistributor` is a compliance artifact. Log retention (CNBV requires 5 years for financial records) must be addressed at the infrastructure layer (OCI logging, not just on-chain events which could be pruned).
-- The CNBV compliance variant of the contract library (roadmap) will need jurisdiction-specific constructor args validated by Mexican counsel.
+**Implicaciones de ingeniería**:
+- `IKYCVerifier` no es opcional — es el mecanismo por el cual los requisitos de identidad de FATF Rec. 15 se adjuntan a las transferencias de tokens.
+- El `ComplianceRegistry` registra la dirección del verificador KYC, el ID de claim KYC, la jurisdicción y el timestamp de forma inmutable — este es el artefacto de auditoría que satisface los requisitos de mantenimiento de registros de FATF.
+- La Regla de Viaje FATF NO está actualmente implementada en Claw1. Para uso en producción, el `DividendDistributor` o cualquier contrato de token futuro debe incluir datos de originador/beneficiario en los metadatos de transferencia. Esta es una brecha conocida.
 
 ---
 
-### Panama — SMV / SBP
+## Contexto Regulatorio por País
 
-**Regulators**: Superintendencia del Mercado de Valores (SMV) for securities; Superintendencia de Bancos de Panamá (SBP) for banking
-**Relevant law**: Draft Bill 326 (2025) — pending as of mid-2026
+### México — CNBV
 
-**What applies now**:
-- Panama has no specific blockchain or crypto asset regulation as of mid-2026. The SBP and SMV have explicitly disclaimed jurisdiction over virtual assets in the absence of specific legislation.
-- AML/CFT obligations under Panamanian law apply to "regulated entities" (banks, broker-dealers, insurance companies). A purely blockchain-based token issuance platform with no fiat on/off ramp may not be a "regulated entity" today. This is the legal gray zone.
-- FATF standards apply: Panama is a FATF member and subject to mutual evaluation.
+**Regulador**: Comisión Nacional Bancaria y de Valores (CNBV)
+**Ley relevante**: Ley para Regular las Instituciones de Tecnología Financiera (Ley Fintech, 2018); Circular Única de Fondeo Colectivo
 
-**Draft Bill 326 (pending)**:
-- Would create a mandatory licensing regime for VASPs under SMV oversight.
-- Would impose FATF-compliant KYC/AML requirements on any entity dealing in digital assets.
-- Timeline: ~12–18 months to enactment as of mid-2026 (unconfirmed).
-- If enacted, any Panamanian institution using Claw1 for tokenized asset issuance would need a VASP license and FATF-compliant infrastructure.
+**Qué regula la CNBV para casos de uso Claw1**:
+- Las plataformas de crowdfunding (*instituciones de financiamiento colectivo*) deben tener licencia CNBV. Pueden facilitar inversiones de capital, deuda o copropiedad bajo límites y requisitos de divulgación específicos.
+- Las plataformas con licencia CNBV deben mantener registros de identidad de inversores y registros de transacciones. Estos son los artefactos de cumplimiento que `ComplianceRegistry` + eventos `DividendDistributor` generan on-chain.
+- La CNBV no ha emitido orientación específica sobre valores tokenizados a mediados de 2026. El supuesto de trabajo es que el capital tokenizado en una L1 privada cae bajo el mismo marco de la Ley Fintech que el crowdfunding convencional.
+- Posición FATF de México: México ocupó la Presidencia de FATF hasta junio de 2026. Se espera una aplicación agresiva de estándares FATF.
 
-**Engineering implications**:
-- The Panama compliance variant (roadmap) must be designed with Bill 326 in mind even if it isn't law yet. Build for the anticipated requirement, not the current gap.
-- `jurisdiction = "SMV-PA"` placeholder exists for future use.
-- Do not tell Panamanian customers they have no regulatory obligations — the FATF Travel Rule applies regardless of national implementation status.
+**Implicaciones de ingeniería**:
+- `jurisdiction = "CNBV-MX"` en `ComplianceRegistry` es el identificador que mapea este despliegue a la ley mexicana.
+- Cualquier evento de distribución de dividendos emitido por `DividendDistributor` es un artefacto de cumplimiento. La retención de registros (CNBV requiere 5 años para registros financieros) debe abordarse en la capa de infraestructura.
+
+---
+
+### Panamá — SMV / SBP
+
+**Reguladores**: Superintendencia del Mercado de Valores (SMV) para valores; Superintendencia de Bancos de Panamá (SBP) para banca
+**Ley relevante**: Proyecto de Ley 326 (2025) — pendiente a mediados de 2026
+
+**Qué aplica ahora**:
+- Panamá no tiene regulación específica de blockchain o criptoactivos a mediados de 2026. El SBP y SMV han descartado explícitamente la jurisdicción sobre activos virtuales en ausencia de legislación específica.
+- Las obligaciones AML/CFT bajo la ley panameña aplican a "entidades reguladas" (bancos, corredores de bolsa, compañías de seguros). Una plataforma de emisión de tokens puramente basada en blockchain sin rampa fiat puede no ser una "entidad regulada" hoy.
+- Los estándares FATF aplican: Panamá es miembro FATF.
+
+**Proyecto de Ley 326 (pendiente)**:
+- Crearía un régimen de licenciamiento obligatorio para VASPs bajo supervisión SMV.
+- Impondría requisitos KYC/AML conformes a FATF sobre cualquier entidad que opere con activos digitales.
+- Cronograma: ~12–18 meses para entrada en vigor a mediados de 2026 (no confirmado).
+
+**Implicaciones de ingeniería**:
+- La variante de cumplimiento de Panamá (hoja de ruta) debe diseñarse con el Proyecto de Ley 326 en mente aunque aún no sea ley.
+- `jurisdiction = "SMV-PA"` placeholder existe para uso futuro.
+- No le digas a clientes panameños que no tienen obligaciones regulatorias — la Regla de Viaje FATF aplica independientemente del estado de implementación nacional.
 
 ---
 
 ### Colombia — SFC
 
-**Regulator**: Superintendencia Financiera de Colombia (SFC)  
-**Relevant guidance**: Circular Externa 027 (2021) — guidelines on crypto asset operations for supervised entities
+**Regulador**: Superintendencia Financiera de Colombia (SFC)
+**Guía relevante**: Circular Externa 027 (2021) — pautas sobre operaciones con criptoactivos para entidades supervisadas
 
-**What applies**:
-- SFC-supervised entities (banks, brokers, payment companies) may operate with crypto assets under CE 027 conditions: risk management framework, AML/CFT controls, consumer protection disclosures.
-- SFC has not issued specific tokenized securities guidance. Tokenized equity or debt instruments likely fall under existing securities law (Decree 2555/2010).
-- Colombia is working toward a formal crypto regulatory framework; the SFC issued a regulatory sandbox in 2021-2022.
+**Qué aplica**:
+- Las entidades supervisadas por SFC (bancos, corredoras, empresas de pago) pueden operar con criptoactivos bajo condiciones CE 027: marco de gestión de riesgos, controles AML/CFT, divulgaciones de protección al consumidor.
+- Colombia avanza hacia un marco regulatorio formal de criptomonedas.
 
-**Engineering implications**:
-- `jurisdiction = "SFC-CO"` for Colombian deployments.
-- KYC requirements are stringent: SARLAFT (Sistema de Administración del Riesgo de Lavado de Activos y de la Financiación del Terrorismo) compliance is mandatory for SFC-supervised entities. `IKYCVerifier` must interface with a SARLAFT-compliant identity provider in production.
-
----
-
-### Brazil — CVM / BCB
-
-**Regulators**: Comissão de Valores Mobiliários (CVM) for securities; Banco Central do Brasil (BCB) for payment systems  
-**Relevant law**: Lei 14.478 (2022) — legal framework for virtual assets; Resolution CVM 175 (2022)
-
-**What applies**:
-- Brazil passed comprehensive crypto asset legislation in 2022. VASPs must register with BCB.
-- CVM Resolution 175 regulates crypto asset funds (FICs in crypto). Tokenized securities offerings fall under CVM jurisdiction.
-- BCB's VASP registration covers exchanges and payment processors dealing in virtual assets.
-
-**Engineering implications**:
-- Brazilian deployments need both CVM (if tokenized securities) and BCB (if any fiat payment interface) compliance paths.
-- `jurisdiction = "CVM-BR"` for Brazilian deployments.
-- Brazil's PIX instant payment system integration (out of scope for now) would trigger BCB obligations.
+**Implicaciones de ingeniería**:
+- `jurisdiction = "SFC-CO"` para despliegues colombianos.
+- Los requisitos KYC son estrictos: el cumplimiento SARLAFT (Sistema de Administración del Riesgo de Lavado de Activos y de la Financiación del Terrorismo) es obligatorio para entidades supervisadas por SFC. `IKYCVerifier` debe interconectarse con un proveedor de identidad conforme a SARLAFT en producción.
 
 ---
 
-## ERC-3643 / T-REX Regulatory Context
+### Brasil — CVM / BCB
 
-**What it is**: ERC-3643 (the T-REX standard, by Tokeny) is the identity-gated token standard. It enforces KYC at the contract layer: tokens can only be transferred to addresses that hold a valid on-chain claim from a trusted claim issuer (via ONCHAINID).
+**Reguladores**: Comissão de Valores Mobiliários (CVM) para valores; Banco Central do Brasil (BCB) para sistemas de pago
+**Ley relevante**: Lei 14.478 (2022) — marco legal para activos virtuales; Resolución CVM 175 (2022)
 
-**Why it matters for LATAM regulation**:
-- ERC-3643 is referenced by SEC Chairman Atkins (July 2025) as a model for compliant tokenized securities infrastructure. This is the strongest regulatory signal available for a compliance-focused blockchain product.
-- MAS (Monetary Authority of Singapore) and institutional projects (JPMorgan, DBS) have deployed under ERC-3643. This gives regulators a reference point when evaluating LATAM deployments.
-- ERC-3643 does NOT itself satisfy LATAM regulatory requirements — it provides the technical mechanism; the regulatory satisfaction depends on which claim issuer signs the identity claims and under what KYC/AML framework.
+**Qué aplica**:
+- Brasil aprobó legislación integral sobre criptoactivos en 2022. Los VASPs deben registrarse en BCB.
+- La Resolución CVM 175 regula los fondos de criptoactivos. Las ofertas de valores tokenizados caen bajo la jurisdicción de CVM.
 
-**Engineering implications**:
-- ONCHAINID is the identity layer. In production, the claim issuer must be a FATF-compliant KYC provider (Fractal, Synaps, Sumsub, or institution-operated). For demo purposes, the deployer address acts as claim issuer.
-- The `IKYCVerifier` interface in `DividendDistributor` is the connection point between Claw1's contract layer and ERC-3643's identity layer. Post-hackathon, this interface needs to call into the ERC-3643 identity registry, not just a stub.
-- Claim topic ID 1 (standard KYC topic in ERC-3643 reference deployments) is the starting point. Jurisdiction-specific claim topics may be needed for production (e.g., a CNBV-specific claim topic that attestsFintech registration status).
-
----
-
-## EncryptedERC / Privacy Considerations
-
-**What it is**: EncryptedERC (Ava Labs) uses zk-SNARKs (specifically a variant of the Aztec Note scheme) to provide confidential balances on-chain. Token amounts are hidden; only the holder can decrypt their balance.
-
-**Regulatory tension**:
-- FATF Travel Rule requires originator/beneficiary information to accompany transfers. Encrypted balances make this technically harder to implement at the protocol layer.
-- AML obligations require the ability to freeze and/or recover assets in certain circumstances. Full balance privacy may conflict with this requirement in some jurisdictions.
-- For cap table privacy (hiding individual shareholder positions from other shareholders), eERC is likely acceptable to regulators: the institution still holds the decryption keys and can satisfy disclosure requests. The privacy is between shareholders, not between the institution and the regulator.
-
-**Engineering implications**:
-- eERC should only be offered with an explicit regulatory warning in the wizard UI: "Confidential balances require you to maintain decryption key custody and provide unencrypted disclosure to regulators on demand."
-- The wizard should not offer eERC for jurisdictions where AML obligations preclude balance privacy without legal review.
-- Do not position eERC as making transactions "untraceable" — it doesn't, and that framing creates regulatory problems.
+**Implicaciones de ingeniería**:
+- Los despliegues en Brasil necesitan rutas de cumplimiento tanto de CVM (si son valores tokenizados) como de BCB (si hay interfaz de pago fiat).
+- `jurisdiction = "CVM-BR"` para despliegues en Brasil.
 
 ---
 
-## Bridge Directionality — The Asymmetric Regulatory Risk
+## Contexto Regulatorio ERC-3643 / T-REX
 
-This is one of the most important regulatory constraints in the product.
+**Qué es**: ERC-3643 (el estándar T-REX, por Tokeny) es el estándar de tokens con identidad restringida. Aplica KYC en la capa de contrato: los tokens solo pueden transferirse a direcciones que posean un claim on-chain válido de un emisor de claims confiable (vía ONCHAINID).
 
-**C-chain → L1 (inbound)**: A USDC transfer from Avalanche C-chain into the private L1 is a fiat-equivalent inflow into a permissioned environment. The institution controls the L1 and can enforce KYC on the receiving address. This is analogous to a wire transfer into a regulated account. Regulators can generally accept this.
+**Por qué importa para la regulación LATAM**:
+- ERC-3643 fue mencionado por el presidente de la SEC Atkins (julio 2025) como modelo para infraestructura de valores tokenizados conformes. Esta es la señal regulatoria más fuerte disponible para un producto blockchain enfocado en cumplimiento.
+- MAS (Autoridad Monetaria de Singapur) y proyectos institucionales (JPMorgan, DBS) han desplegado bajo ERC-3643. Esto le da a los reguladores un punto de referencia al evaluar despliegues LATAM.
 
-**L1 → C-chain (outbound)**: A tokenized equity or debt instrument leaving the permissioned L1 to a public chain is a fundamentally different event. Once on the public C-chain, the token is accessible to any address — no TxAllowList, no KYC enforcement, no compliance oversight. This likely triggers:
-- Securities law (in most jurisdictions, a token representing equity/debt is a security once it's freely transferable on a public chain)
-- FATF Travel Rule (the transfer crosses from a VASP-controlled environment to a public network)
-- AML obligations (the institution can no longer control who holds the token)
-
-**Product rule**: The wizard MUST block L1 → C-chain transfers by default, with a regulatory warning. Allowing outbound transfers requires explicit legal sign-off per jurisdiction and is out of scope for the current implementation. This is not a technical limitation — it's a deliberate compliance boundary.
-
----
-
-## Data Sovereignty
-
-**The forcing function**: Most LATAM financial regulators require that customer data remain within national borders or at minimum within the institution's direct control. This eliminates:
-- AvaCloud (data on Ava Labs' AWS infrastructure)
-- AWS Managed Blockchain, Azure Blockchain (data on US cloud provider infrastructure)
-- Any shared public chain (data visible to all participants)
-
-**What Claw1 provides**:
-- OCI deployment: data stays in the institution's own Oracle Cloud tenancy, in their chosen OCI region (São Paulo, Santiago, Bogotá, Mexico City as available)
-- On-prem deployment: data stays in the institution's own datacenter
-- The deployer holds all keys; Claw1 as a vendor has zero access to chain data
-
-**Engineering implications**:
-- The `network.json` state file (written to `~/.claw1/`) contains private keys and RPC URLs. Never commit this. Never log it. The `.gitignore` enforces this.
-- Production deployments should use OCI Vault (HSM-backed key storage) rather than plaintext private keys. This is a hard requirement for any production deployment, not an optional enhancement.
-- OCI region selection in the Terraform config should default to the institution's country's OCI region when available.
+**Implicaciones de ingeniería**:
+- ONCHAINID es la capa de identidad. En producción, el emisor de claims debe ser un proveedor KYC conforme a FATF (Fractal, Synaps, Sumsub, u operado por la institución).
+- La interfaz `IKYCVerifier` en `DividendDistributor` es el punto de conexión entre la capa de contratos de Claw1 y la capa de identidad de ERC-3643.
 
 ---
 
-## TxAllowList as a Regulatory Instrument
+## Direccionalidad del Bridge — El Riesgo Regulatorio Asimétrico
 
-TxAllowList is a network-layer precompile that blocks all transactions from addresses not explicitly whitelisted. This is Claw1's "network layer" compliance control.
+Esta es una de las restricciones regulatorias más importantes del producto.
 
-**What it does well**:
-- Prevents any unauthorized address from submitting transactions, regardless of smart contract logic
-- Provides a network-level audit trail (whitelisted addresses are visible in genesis + admin transactions)
-- Cannot be circumvented by a compromised contract — it operates below the EVM
+**C-chain → L1 (entrada)**: Una transferencia de USDC desde Avalanche C-chain hacia la L1 privada es un flujo de equivalente fiat en un entorno permisionado. La institución controla la L1 y puede aplicar KYC en la dirección receptora. Análogo a una transferencia bancaria a una cuenta regulada. Los reguladores generalmente pueden aceptar esto.
 
-**What it does NOT do**:
-- It does not verify identity (only that the address is on a list)
-- It does not satisfy KYC obligations independently — the list must be populated by a KYC-verified process
-- It does not prevent a whitelisted address from transacting with a non-compliant counterparty in another network
-- It does not implement the FATF Travel Rule
+**L1 → C-chain (salida)**: Un instrumento de capital o deuda tokenizado que sale de la L1 permisionada a una cadena pública es un evento fundamentalmente diferente. Una vez en la C-chain pública, el token es accesible para cualquier dirección — sin TxAllowList, sin aplicación KYC, sin supervisión de cumplimiento. Esto probablemente activa:
+- Ley de valores (en la mayoría de las jurisdicciones, un token que representa capital/deuda es un valor una vez que es libremente transferible en una cadena pública)
+- Regla de Viaje FATF
+- Obligaciones AML
 
-**The TxAllowList admin role is critical**. The address holding the admin role (role = 3) can add/remove addresses from the allowlist. In production, this must be a multi-sig or hardware-secured address — not a dev key. Any key compromise that exposes the TxAllowList admin breaks the entire network-layer compliance story.
+**Regla de producto**: El asistente DEBE bloquear las transferencias L1 → C-chain por defecto, con una advertencia regulatoria. Permitir transferencias salientes requiere autorización legal explícita por jurisdicción y está fuera del alcance de la implementación actual.
 
 ---
 
-## What Claw1 Does NOT Provide
+## Soberanía de Datos
 
-To be clear about what the product is and isn't:
+**La función de fuerza**: La mayoría de los reguladores financieros LATAM requieren que los datos del cliente permanezcan dentro de las fronteras nacionales o al menos bajo el control directo de la institución. Esto elimina:
+- AvaCloud (datos en la infraestructura AWS de Ava Labs)
+- AWS Managed Blockchain, Azure Blockchain (datos en infraestructura de proveedores de nube de EE.UU.)
+- Cualquier cadena pública compartida (datos visibles para todos los participantes)
 
-- **Not a KYC provider**: Claw1 provides the interface (`IKYCVerifier`); the institution must connect a real KYC provider.
-- **Not a legal compliance certification**: Deploying Claw1 does not make an institution CNBV/SMV/CVM compliant. It provides technical infrastructure that can support compliance.
-- **Not a securities offering**: The contracts are tools for building compliant financial products, not themselves securities.
-- **Not a substitute for legal review**: Every production deployment should have local counsel review the specific contracts, jurisdiction configuration, and operational procedures before go-live.
-- **Not audited (yet)**: The smart contracts have not undergone a third-party security audit as of the current version. Production deployments require an external audit.
+**Lo que proporciona Claw1**:
+- Despliegue OCI: los datos permanecen en el propio tenancy Oracle Cloud de la institución, en su región OCI elegida (São Paulo, Santiago, Bogotá, Ciudad de México según disponibilidad)
+- Despliegue on-prem: los datos permanecen en el propio datacenter de la institución
+- El deployer tiene todas las llaves; Claw1 como proveedor tiene acceso cero a los datos de la cadena
+
+**Implicaciones de ingeniería**:
+- El archivo de estado `network.json` (escrito en `~/.claw1/`) contiene llaves privadas y URLs RPC. Nunca confirmar. Nunca registrar. El `.gitignore` lo aplica.
+- Los despliegues en producción deben usar OCI Vault (almacenamiento de llaves respaldado por HSM) en lugar de llaves privadas en texto plano.
 
 ---
 
-## Open Regulatory Questions (Tracked for Product Decisions)
+## TxAllowList como Instrumento Regulatorio
 
-1. **FATF Travel Rule implementation**: How does Claw1 attach originator/beneficiary metadata to `DividendDistributor` transfers? Not implemented. Required for production.
-2. **TxAllowList admin key management**: What is the recommended production architecture for the admin key? OCI Vault is the answer; the wizard should guide this.
-3. **ERC-3643 claim issuer liability**: When an institution acts as its own claim issuer, are they taking on liability as a KYC provider? Jurisdiction-specific legal question.
-4. **eERC regulatory acceptance**: Has any FATF member regulator explicitly accepted encrypted-balance tokens for regulated financial products? Not confirmed as of mid-2026.
-5. **L1 → C-chain transfer override**: Under what conditions and with what additional safeguards could outbound bridging be enabled? Requires securities lawyer input per jurisdiction.
-6. **CNBV Circular Única reporting format**: What exactly must be in a quarterly CNBV compliance report? Determines the schema for the auto-generated report feature (roadmap).
+TxAllowList es un precompile a nivel de red que bloquea todas las transacciones de direcciones no explícitamente incluidas en la lista blanca.
+
+**Qué hace bien**:
+- Previene que cualquier dirección no autorizada envíe transacciones, independientemente de la lógica del contrato inteligente
+- Proporciona un rastro de auditoría a nivel de red
+- No puede ser eludido por un contrato comprometido — opera por debajo del EVM
+
+**Lo que NO hace**:
+- No verifica identidad (solo que la dirección está en una lista)
+- No satisface las obligaciones KYC de forma independiente — la lista debe ser poblada por un proceso verificado por KYC
+- No implementa la Regla de Viaje FATF
+
+**El rol admin de TxAllowList es crítico**. En producción, debe ser una dirección multi-sig o respaldada por hardware — no una llave de desarrollo. Cualquier compromiso de llave que exponga al admin TxAllowList rompe toda la historia de cumplimiento a nivel de red.
+
+---
+
+## Lo que Claw1 NO Proporciona
+
+Para ser claros sobre lo que el producto es y no es:
+
+- **No es un proveedor KYC**: Claw1 proporciona la interfaz (`IKYCVerifier`); la institución debe conectar un proveedor KYC real.
+- **No es una certificación de cumplimiento legal**: Desplegar Claw1 no hace que una institución sea conforme con CNBV/SMV/CVM. Proporciona infraestructura técnica que puede apoyar el cumplimiento.
+- **No es una oferta de valores**: Los contratos son herramientas para construir productos financieros conformes, no valores en sí mismos.
+- **No es un sustituto de revisión legal**: Cada despliegue en producción debe tener abogados locales que revisen los contratos específicos, la configuración de jurisdicción y los procedimientos operativos antes de entrar en producción.
+- **No está auditado (aún)**: Los contratos inteligentes no han sido sometidos a una auditoría de seguridad de terceros en la versión actual. Los despliegues en producción requieren una auditoría externa.
+
+---
+
+## Preguntas Regulatorias Abiertas (Rastreadas para Decisiones de Producto)
+
+1. **Implementación de la Regla de Viaje FATF**: ¿Cómo adjunta Claw1 metadatos de originador/beneficiario a las transferencias `DividendDistributor`? No implementado. Requerido para producción.
+2. **Gestión de llaves admin TxAllowList**: ¿Cuál es la arquitectura recomendada en producción para la llave admin? OCI Vault es la respuesta; el asistente debe guiar esto.
+3. **Responsabilidad del emisor de claims ERC-3643**: Cuando una institución actúa como su propio emisor de claims, ¿asume responsabilidad como proveedor KYC? Pregunta legal específica por jurisdicción.
+4. **Aceptación regulatoria eERC**: ¿Algún regulador miembro FATF ha aceptado explícitamente tokens con balance cifrado para productos financieros regulados? No confirmado a mediados de 2026.
+5. **Anulación de transferencia L1 → C-chain**: ¿Bajo qué condiciones y con qué salvaguardas adicionales podría habilitarse el bridge de salida? Requiere aportación de abogado de valores por jurisdicción.
+6. **Formato de reporte Circular Única CNBV**: ¿Qué debe exactamente contener un reporte trimestral de cumplimiento CNBV? Determina el esquema para la función de reporte auto-generado (hoja de ruta).

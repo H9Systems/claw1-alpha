@@ -2,190 +2,180 @@
 
 ---
 
-## What Ships Today
+## Qué se entrega hoy
 
-Two Terraform configurations. One provider. Three contracts. A compliance OS.
+Dos configuraciones Terraform. Un proveedor. Tres contratos. Un OS de cumplimiento. Una TUI.
 
-| Config | Path | Infrastructure |
-|--------|------|----------------|
-| On-prem | `terraform/` | `claw1_l1` + two `claw1_contract` resources on local devnet |
-| Oracle Cloud | `terraform/oci/` | `oracle/oci` VM + same contracts via SSH tunnel |
+| Config | Ruta | Infraestructura |
+|--------|------|-----------------|
+| On-prem | `terraform/` | `claw1_l1` + dos recursos `claw1_contract` en devnet local |
+| Oracle Cloud | `terraform/oci/` | VM `oracle/oci` + los mismos contratos vía túnel SSH |
 
-The provider is `terraform-provider-claw1` (Go). Resources: `claw1_l1` (bootstraps a private Avalanche L1 with TxAllowList injected into genesis) and `claw1_contract` (deploys Solidity with constructor arguments). Three contracts ship together:
+El proveedor es `terraform-provider-claw1` (Go). Recursos: `claw1_l1` (bootstrapea una Avalanche L1 privada con TxAllowList inyectado en genesis) y `claw1_contract` (despliega Solidity con argumentos del constructor). Tres contratos se entregan juntos:
 
-1. **`ComplianceRegistry.sol`** — on-chain compliance configuration record; deployed first; stores chain ID, TxAllowList admin, KYC verifier, and jurisdiction immutably on the chain; regulator queries directly
-2. **`DividendDistributor.sol`** — KYC-gated dividend distribution; tracks basis-point shareholder allocations; KYC enforcement pluggable via `IKYCVerifier` (EIP-5851); zero address disables enforcement for demo
+1. **`ComplianceRegistry.sol`** — registro de configuración de cumplimiento on-chain; desplegado primero; almacena chain ID, admin TxAllowList, verificador KYC y jurisdicción de forma inmutable; el regulador consulta directamente
+2. **`DividendDistributor.sol`** — distribución de dividendos KYC-gated; rastrea asignaciones de accionistas en puntos base; cumplimiento KYC enchufable vía `IKYCVerifier` (EIP-5851); dirección cero desactiva cumplimiento para la demo
 
-This is the Red Hat model in HCL applied to LATAM finreg: same kernel, two deployment targets, three compliance layers your lawyers can read. The financial institution picks which config fits their infrastructure posture; the provider code is identical either way.
+El binario `claw1` provee la TUI: un asistente de tres pantallas (credenciales → despliegue → Sovereignty Receipt) que va desde cero hasta un OS de cumplimiento en vivo con teclas mínimas de teclado.
 
----
-
-## Who We're Selling To
-
-**ICP: The infrastructure or compliance lead at a CNBV/SBS/CMF/SMV-licensed financial institution in Mexico, Colombia, Brazil, or Panama that needs EVM-compatible smart contract infrastructure inside their own datacenter or OCI tenancy.**
-
-Qualifying signals:
-- Runs dividend distribution, settlement, or fractional ownership flows on spreadsheets today
-- Has been told "no" by legal on AvaCloud / AWS / Azure blockchain services
-- Has internal devs who know Terraform
-- Has an existing Oracle OCI tenancy or is evaluating one
-
-ICP archetypes (qualifying signals above):
-- CNBV-licensed crowdfunding platform managing cap tables for multiple companies; distributes investor returns manually; DividendDistributor is a direct fit
-- Digital bank with an infrastructure team and data sovereignty constraints
-
-Non-ICP right now: DeFi protocols, Layer 1 natives, US/EU enterprises. They don't have the data sovereignty forcing function that makes the on-prem story land.
+Este es el modelo Red Hat en HCL aplicado a la finreg LATAM: mismo kernel, dos destinos de despliegue, tres capas de cumplimiento que tus abogados pueden leer. La institución financiera elige qué configuración se adapta a su postura de infraestructura; el código del proveedor es idéntico de cualquier manera.
 
 ---
 
-## Problem We Solve
+## A Quién le Vendemos
 
-Regulated Latin American fintechs cannot put investor or depositor data on a shared public blockchain. They need:
+**ICP: El líder de infraestructura o cumplimiento en una institución financiera con licencia CNBV/SBS/CMF/SMV en México, Colombia, Brasil o Panamá que necesita infraestructura EVM compatible con smart contracts dentro de su propio datacenter o tenancy OCI.**
 
-1. An EVM chain they fully control and can audit
-2. Deployment that fits their existing IaC workflows (Terraform)
-3. Smart contracts their compliance team can read and verify
-4. All of it running inside their OCI tenancy or on-prem datacenter
+Señales de calificación:
+- Ejecuta distribución de dividendos, liquidación o flujos de propiedad fraccionaria en hojas de cálculo hoy
+- Ha recibido un "no" de legal con AvaCloud / AWS / servicios blockchain Azure
+- Tiene devs internos que conocen Terraform
+- Tiene un tenancy Oracle OCI existente o lo está evaluando
 
-The current alternative is raw `avalanche-cli` + manual steps + homegrown scripts — nothing an infrastructure team can version, review, or repeat safely. `terraform apply` as the atomic unit of change is the entry point. The compliance evidence that accumulates on-chain with every action is the lock-in.
+Arquetipos ICP (señales de calificación anteriores):
+- Plataforma de crowdfunding con licencia CNBV gestionando cap tables para múltiples empresas; distribuye retornos a inversores manualmente; DividendDistributor es un ajuste directo
+- Banco digital con equipo de infraestructura y restricciones de soberanía de datos
 
----
-
-## Positioning
-
-**Claw1 is compliance-as-code for LATAM regulated fintechs.**
-
-One sentence: "Declare your compliance posture in HCL. `terraform apply`. Your chain enforces it. Your contracts record it. A regulator queries it directly."
-
-Every competitor shows a dashboard or a CLI tutorial. We show a `main.tf` that deploys a protocol-enforced compliance OS — TxAllowList at the network layer, KYC verification at the contract layer, an immutable compliance registry on the chain — in a single command. That's the entire pitch.
-
-The `main.tf` is the artifact. The compliance registry is the moat.
-
-Oracle angle: "Same provider, two configs — `terraform/` for on-prem, `terraform/oci/` for Oracle Cloud. Your compliance team decides which one. The code is identical."
+No ICP ahora: protocolos DeFi, nativos Layer 1, empresas de EE.UU./Europa. No tienen la función de fuerza de soberanía de datos que hace aterrizar la historia on-prem.
 
 ---
 
-## Business Model
+## Problema que Resolvemos
 
-Open source now. The OSS is the product. Revenue follows trust.
+Las fintechs latinoamericanas reguladas no pueden poner datos de inversores o depositantes en una blockchain pública compartida. Necesitan:
 
-**What's free (Apache 2.0):**
-- `terraform-provider-claw1` — the Go provider
-- `terraform/` — on-prem configuration
-- `terraform/oci/` — OCI configuration
-- `DividendDistributor.sol` + Foundry tests
-- Sovereignty Receipt dashboard
+1. Una cadena EVM que controlen totalmente y puedan auditar
+2. Despliegue que se adapte a sus flujos de trabajo IaC existentes (Terraform)
+3. Smart contracts que su equipo de cumplimiento pueda leer y verificar
+4. Todo corriendo dentro de su tenancy OCI o datacenter on-prem
 
-**What we charge for (post-hackathon):**
-
-**Primary — Compliance Contract Library (enterprise license per deployment):**
-- Pre-audited, jurisdiction-specific Solidity contracts for LATAM financial regulation
-- Phase 1: `DividendDistributor` + `ComplianceRegistry` (CNBV Mexico compliance variant)
-- Phase 2: Shareholder registry + KYC/AML on-chain module (Panama Draft Bill 326 / FATF) + jurisdiction-specific `ComplianceRegistry` templates
-- Pricing target: $15–50k/yr enterprise license (validated once audit cost is known)
-- What the customer is buying: months of regulatory research + external smart contract audit + ongoing compliance updates as regulation changes + the on-chain evidence trail that makes their periodic filings self-generating
-
-**Secondary — Professional Services:**
-- Deploying and hardening claw1 in a customer's production OCI tenancy
-- Support SLA: 4h response, migration support
-- Custom contract development for requirements not covered by the standard library
-
-The Terraform provider is the delivery mechanism for the compliance library — it's what makes the contracts deployable via a single `terraform apply`. The provider is free; the audited contracts are not.
-
-The moat is not the IaC wrapper. Any DevOps engineer can write `null_resource` + shell script to call `avalanche-cli`. The moat is the compliance contract library: regulatory research, external audit relationships, and jurisdiction-specific contract templates that would cost an enterprise $50–200k and 3–6 months to replicate independently.
+La alternativa actual es `avalanche-cli` puro + pasos manuales + scripts caseros — nada que un equipo de infraestructura pueda versionar, revisar o repetir de forma segura. `terraform apply` como unidad atómica de cambio es el punto de entrada. La evidencia de cumplimiento que se acumula on-chain con cada acción es el lock-in.
 
 ---
 
-## Competitive Moat
+## Posicionamiento
 
-| Competitor | Why They Lose |
-|-----------|---------------|
-| AvaCloud (Ava Labs) | Public cloud only; no OCI tenancy; no on-prem; compliance teams say no |
-| Oracle Blockchain Platform | Hyperledger Fabric — not EVM; no Solidity; no DeFi interoperability |
-| Ankr / QuickNode | Shared chains; no data sovereignty; no custom L1 |
-| Raw `avalanche-cli` | No Terraform; no idempotency; no compliance contracts; no operator story |
+**Claw1 es compliance-as-code para fintechs reguladas LATAM.**
 
-**The real competitor is Oracle's own Hyperledger Fabric platform.** Enterprises on OCI don't pick Hyperledger because it's good — they pick it because it's the only compliant option available to them. The pitch to a Hyperledger customer is not "switch to Avalanche" — it's "get everything Hyperledger gives you for compliance, plus EVM and Solidity, running inside your existing OCI tenancy."
+Una oración: "Declara tu postura de cumplimiento en HCL. `terraform apply`. Tu cadena lo aplica. Tus contratos lo registran. Un regulador lo consulta directamente."
 
-**The moat is the compliance evidence layer**, not the IaC interface. The `main.tf` gets us in the door with infrastructure teams. The compliance library + `ComplianceRegistry` is why they stay and pay: once a CNBV-licensed institution is generating quarterly filings from their claw1 chain, their entire compliance history lives on that chain. Switching means reconstructing the evidence trail from scratch — $50–200k and months of audit work. That switching cost accrues with every compliance event their chain records, every quarter they file.
+Cada competidor muestra un dashboard o un tutorial CLI. Nosotros mostramos un `main.tf` que despliega un OS de cumplimiento con aplicación a nivel de protocolo — TxAllowList en la capa de red, verificación KYC en la capa de contrato, un registro de cumplimiento inmutable en la cadena — en un solo comando. Eso es todo el pitch.
 
-Hyperledger has no `TxAllowList` equivalent configurable via IaC. Public chains have no network-level access control. AvaCloud runs on Ava Labs' infrastructure. No competitor has all four layers — protocol enforcement + contract eligibility + on-chain evidence + data residency — in a single `terraform apply`.
+El `main.tf` es el artefacto. El registro de cumplimiento es el foso.
+
+Ángulo Oracle: "Mismo proveedor, dos configs — `terraform/` para on-prem, `terraform/oci/` para Oracle Cloud. Tu equipo de cumplimiento decide cuál. El código es idéntico."
 
 ---
 
-## Launch Sequence
+## Modelo de Negocio
 
-### Phase 0 — Initial Release
-Goal: working demo in front of the Oracle judge.
+Open source ahora. El OSS es el producto. Los ingresos siguen a la confianza.
 
-- `terraform apply` in `terraform/oci/` deploys a private Avalanche L1 with TxAllowList, ComplianceRegistry, and DividendDistributor on Oracle Cloud via SSH tunnel
-- `cast call <registry> 'getConfig()'` — show the compliance record on the chain; hand the judge the RPC URL
-- Sovereignty Receipt shows validators, contract addresses, and Compliance Posture panel live
-- Oracle judge sees their own Terraform provider (`oracle/oci`) in the main.tf
+**Qué es gratis (Apache 2.0):**
+- `terraform-provider-claw1` — el proveedor Go
+- `terraform/` — configuración on-prem
+- `terraform/oci/` — configuración OCI
+- `DividendDistributor.sol` + tests Foundry
+- Sovereignty Receipt (TUI)
 
-Deliverable: the two-config repo running end-to-end on real OCI infrastructure, with a compliance OS that a CNBV judge can query directly.
+**Por qué cobramos (post-hackathon):**
 
-### Phase 1 — First Design Partner (weeks 1–8 post-hackathon)
-Goal: the design partner runs `terraform apply` in their environment.
+**Principal — Biblioteca de Contratos de Cumplimiento (licencia enterprise por despliegue):**
+- Contratos Solidity pre-auditados y específicos por jurisdicción para regulación financiera LATAM
+- Fase 1: `DividendDistributor` + `ComplianceRegistry` (variante de cumplimiento CNBV México)
+- Fase 2: registro de accionistas + módulo KYC/AML on-chain (Proyecto de Ley 326 de Panamá / FATF) + plantillas `ComplianceRegistry` específicas por jurisdicción
+- Precio objetivo: $15–50k/año licencia enterprise
 
-- Send repo link + a 3-minute Loom of the OCI demo
-- Offer a 45-minute walkthrough on their hardware or OCI tenancy
-- If they run it: design partner. Get a quote for the README.
-- Ask: what does their compliance team need that the OSS provider doesn't give them? That answer shapes the paid tier.
+**Secundario — Servicios Profesionales:**
+- Desplegar y fortalecer claw1 en el tenancy OCI de producción del cliente
+- SLA de soporte: 4h de respuesta, soporte de migración
+- Desarrollo de contratos personalizados para requisitos no cubiertos por la biblioteca estándar
 
-Deliverable: `terraform apply` end-to-end in one design partner's infrastructure.
-
-### Phase 2 — Terraform Registry (weeks 4–6 post-hackathon)
-Goal: remove the `make install` friction.
-
-- Publish `h9-systems/claw1` to the Terraform Public Registry (GPG signing + GitHub Actions release)
-- `source = "h9-systems/claw1"` works from any `main.tf` without touching Go source
-- Ship `examples/dividend-distributor/` as a forkable starter
-
-Deliverable: any engineer can run the demo from scratch with `terraform init`.
-
-### Phase 3 — First Paid Engagement (weeks 8–16)
-Goal: one company pays for professional services or a support contract.
-
-- Scope: deploy claw1 in their OCI production tenancy, write their specific compliance contract, train their team on the provider
-- Price: $5–15k professional services engagement or $2k/month support retainer
-- Learn: what do they need in the provider that isn't there yet? That backlog becomes roadmap.
+El moat no es el wrapper IaC. Es la biblioteca de contratos de cumplimiento: investigación regulatoria, relaciones de auditoría externa y plantillas de contratos específicas por jurisdicción que costaría a una empresa $50–200k y 3–6 meses replicar de forma independiente.
 
 ---
 
-## Distribution
+## Moat Competitivo
 
-**Now — direct outreach.** The buyer is a specific person at a specific company. No inbound funnel exists. Find the CTO or Head of Infrastructure at the target institution, show them the Loom, book the call.
+| Competidor | Por Qué Pierden |
+|-----------|-----------------|
+| AvaCloud (Ava Labs) | Solo nube pública; sin tenancy OCI; sin on-prem; los equipos de cumplimiento dicen que no |
+| Oracle Blockchain Platform | Hyperledger Fabric — no EVM; sin Solidity; sin interoperabilidad DeFi |
+| Ankr / QuickNode | Cadenas compartidas; sin soberanía de datos; sin L1 personalizada |
+| `avalanche-cli` puro | Sin Terraform; sin idempotencia; sin contratos de cumplimiento; sin historia de operador |
 
-**Month 2+ — developer community.** Publish to Terraform Registry. One blog post: "How we deployed a private Avalanche L1 with 47 lines of HCL." Submit to Avalanche ecosystem newsletter. The OSS layer becomes the top of the funnel.
-
-**Ongoing — Oracle relationship.** The OCI demo at the hackathon gives Oracle a reason to refer us to their LatAm financial services accounts. Get on the OCI ISV Partner Network as soon as the relationship is warm.
-
-**Panama wedge (founder's home market).** Panama has no blockchain regulation today — the SBP and SMV have explicitly disclaimed oversight. Draft Bill 326 (2025) will impose mandatory AML/KYC licensing on VASPs under the SMV. Any entity in Panama dealing in digital assets will need FATF-compliant KYC/AML infrastructure before that bill takes effect (~12–18 months). The KYC on-chain module (Track 2) positions claw1 ahead of this regulatory curve. Target: one Panamanian crypto exchange, digital broker, or bank beginning to engage in digital assets — offer them a pilot of the KYC module as pre-compliance infrastructure before they're required to have it.
-
-Do not pursue: paid ads, SEO, PLG. The ICP is too narrow and the ACV too high for bottom-up virality in year one.
-
----
-
-## The Ask for the Oracle Judge
-
-"We're looking for one thing: an introduction to an OCI financial services account in Mexico or Colombia that is evaluating blockchain infrastructure.
-
-We have a working Terraform configuration that uses `oracle/oci` to provision the VM and `claw1_l1` to deploy the chain. We can have it running in their tenancy in a day."
-
-One ask. Not a partnership deck.
+**El competidor real es la propia plataforma Hyperledger Fabric de Oracle.** Las empresas en OCI no eligen Hyperledger porque es bueno — lo eligen porque era la única opción conforme disponible para ellos. El pitch a un cliente Hyperledger no es "cambia a Avalanche" — es "obtén todo lo que Hyperledger te da para cumplimiento, más EVM y Solidity, corriendo dentro de tu tenancy OCI existente."
 
 ---
 
-## 30-Day Metrics
+## Secuencia de Lanzamiento
 
-| Metric | Target |
-|--------|--------|
-| `terraform apply` on OCI working live | Phase 0 milestone |
-| Design partner identified | 1 |
-| `terraform apply` in their environment | Yes / No by week 8 |
-| Terraform Registry publish | Week 4–6 |
-| Oracle introduction secured | 1 intro by week 2 |
-| First paid engagement signed | Week 8–16 |
+### Fase 0 — Lanzamiento Inicial
+Objetivo: demo funcionando frente al juez Oracle.
 
-Revenue is not the 30-day metric. One company runs `terraform apply` on their infrastructure and calls it repeatable — that's the milestone that unlocks everything else.
+- `terraform apply` en `terraform/oci/` despliega una Avalanche L1 privada con TxAllowList, ComplianceRegistry y DividendDistributor en Oracle Cloud vía túnel SSH
+- `cast call <registry> 'getConfig()'` — muestra el registro de cumplimiento en la cadena; dale al juez la URL RPC
+- Sovereignty Receipt muestra validadores, direcciones de contratos y panel de Compliance Posture en vivo
+- El juez Oracle ve su propio proveedor Terraform (`oracle/oci`) en el main.tf
+
+Entregable: el repo de dos configs corriendo end-to-end en infraestructura OCI real, con un OS de cumplimiento que un juez CNBV puede consultar directamente.
+
+### Fase 1 — Primer Design Partner (semanas 1–8 post-hackathon)
+Objetivo: el design partner ejecuta `terraform apply` en su entorno.
+
+- Envía enlace del repo + un Loom de 3 minutos de la demo OCI
+- Ofrece un walkthrough de 45 minutos en su hardware o tenancy OCI
+- Si lo ejecutan: design partner. Obtén una cita para el README.
+- Pregunta: ¿qué necesita su equipo de cumplimiento que el proveedor OSS no les da? Esa respuesta da forma al nivel pago.
+
+### Fase 2 — Terraform Registry (semanas 4–6 post-hackathon)
+Objetivo: eliminar la fricción de `make install`.
+
+- Publicar `h9-systems/claw1` en el Terraform Public Registry
+- `source = "h9-systems/claw1"` funciona desde cualquier `main.tf` sin tocar el código Go
+- Entregar `examples/dividend-distributor/` como starter forkeable
+
+### Fase 3 — Primer Compromiso Pago (semanas 8–16)
+Objetivo: una empresa paga por servicios profesionales o un contrato de soporte.
+
+- Alcance: desplegar claw1 en su tenancy OCI de producción, escribir su contrato de cumplimiento específico, entrenar a su equipo en el proveedor
+- Precio: $5–15k compromiso de servicios profesionales o retainer de soporte de $2k/mes
+
+---
+
+## Distribución
+
+**Ahora — alcance directo.** El comprador es una persona específica en una empresa específica. No existe embudo de entrada. Encuentra al CTO o Head de Infraestructura en la institución objetivo, muéstrale el Loom, reserva la llamada.
+
+**Mes 2+ — comunidad de desarrolladores.** Publicar en Terraform Registry. Un blog post: "Cómo desplegamos una Avalanche L1 privada con 47 líneas de HCL." La capa OSS se convierte en la parte superior del embudo.
+
+**Ongoing — relación Oracle.** La demo OCI en el hackathon le da a Oracle una razón para referirnos a sus cuentas de servicios financieros LatAm. Entrar a OCI ISV Partner Network tan pronto como la relación esté cálida.
+
+**Cuña Panamá (mercado de origen del fundador).** Panamá no tiene regulación blockchain hoy — el SBP y SMV han descartado explícitamente la supervisión. El Proyecto de Ley 326 (2025) impondrá licenciamiento obligatorio AML/KYC sobre VASPs bajo SMV. Cualquier entidad en Panamá que opere con activos digitales necesitará infraestructura KYC/AML conforme a FATF antes de que esa ley entre en vigor (~12–18 meses).
+
+No perseguir: anuncios pagados, SEO, PLG. El ICP es demasiado estrecho y el ACV demasiado alto para la viralidad bottom-up en el año uno.
+
+---
+
+## El Pedido al Juez Oracle
+
+"Buscamos una sola cosa: una introducción a una cuenta de servicios financieros OCI en México o Colombia que esté evaluando infraestructura blockchain.
+
+Tenemos una configuración Terraform funcional que usa `oracle/oci` para aprovisionar la VM y `claw1_l1` para desplegar la cadena. Podemos tenerla corriendo en su tenancy en un día."
+
+Un pedido. No un deck de partnership.
+
+---
+
+## Métricas a 30 Días
+
+| Métrica | Objetivo |
+|--------|----------|
+| `terraform apply` en OCI funcionando en vivo | Hito Fase 0 |
+| Design partner identificado | 1 |
+| `terraform apply` en su entorno | Sí / No para semana 8 |
+| Publicación Terraform Registry | Semanas 4–6 |
+| Introducción Oracle asegurada | 1 intro para semana 2 |
+| Primer compromiso pago firmado | Semanas 8–16 |
+
+Los ingresos no son la métrica de 30 días. Una empresa ejecuta `terraform apply` en su infraestructura y lo llama repetible — ese es el hito que desbloquea todo lo demás.

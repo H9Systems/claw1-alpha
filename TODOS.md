@@ -1,105 +1,73 @@
 # TODOS
 
-## P0 — Foundation prep
+## P0 — Preparación de base
 
-- [x] **Create `.gitignore` with `.claw1/`** — `.claw1/network.json` contains the funded deployer private key. Must not be committed.
-  ```
-  .claw1/
-  wallet/
-  .env
-  ```
+- [x] **Crear `.gitignore` con `.claw1/`** — `.claw1/network.json` contiene la llave privada del deployer con fondos. No debe confirmarse.
 
-- [x] **Write `preflight.sh`** — 2 gate checks before `terraform apply`:
-  1. `forge --version` (Foundry on PATH)
-  2. `avalanche network list` shows no stale networks
-  
-  (Gate 2 "Oracle Instant Client" removed — dashboard not in hackathon scope.)
-  
-  Run: `./preflight.sh && terraform apply`
+- [x] **Escribir `preflight.sh`** — 2 verificaciones de puerta antes de `terraform apply`:
+  1. `forge --version` (Foundry en PATH)
+  2. `avalanche network list` no muestra redes obsoletas
 
-## P0 — Build day (implementation priorities)
+## P0 — Día de build (prioridades de implementación)
 
-- [ ] **`l1_resource.go`: idempotent Create** — check `avalanche network list` before calling `avalanche blockchain create`. If L1 with same name exists, skip create. This makes `terraform apply` safe to re-run if the demo fails partway through.
+- [ ] **`l1_resource.go`: Create idempotente** — verificar `avalanche network list` antes de llamar `avalanche blockchain create`. Si existe una L1 con el mismo nombre, omitir create. Hace que `terraform apply` sea seguro de re-ejecutar.
 
-- [ ] **`contract_resource.go`: auto-read private key** — read deployer private key from `.claw1/network.json` (written by `claw1_l1` resource). Do NOT require `CLAW1_DEPLOYER_PRIVATE_KEY` env var — that's a manual step that could be forgotten during the demo.
+- [ ] **`contract_resource.go`: auto-leer llave privada** — leer llave privada del deployer desde `.claw1/network.json`. NO requerir variable env `CLAW1_DEPLOYER_PRIVATE_KEY`.
 
-- [ ] **`contract_resource.go`: log to `.claw1/contract-deploy.log`** — write `forge create` stdout/stderr to this file. Forensic artifact if deploy fails.
+- [ ] **`contract_resource.go`: log a `.claw1/contract-deploy.log`** — escribir stdout/stderr de `forge create` a este archivo. Artefacto forense si el despliegue falla.
 
-- [ ] **`l1_resource.go` Delete: state-only** — call `resp.State.RemoveResource(ctx)` only. Do NOT run `avalanche network clean` — that is a global operation that would destroy ALL local networks on the machine, which is a footgun for any multi-L1 setup. Actual network teardown is owned by `demo/reset.sh`. 
+- [ ] **`l1_resource.go` Delete: solo estado** — llamar `resp.State.RemoveResource(ctx)` únicamente. NO ejecutar `avalanche network clean` — esa es una operación global que destruiría TODAS las redes locales en la máquina.
 
-- [ ] **`contract_resource.go`: deployer_key source** — read deployer private key from `claw1_l1.demo.deployer_key` (sensitive computed output) passed explicitly in `main.tf`. Do NOT require `CLAW1_DEPLOYER_PRIVATE_KEY` env var. 
+- [ ] **`l1_resource.go`: timeout Create de 10 minutos** — implementar `Timeouts()` retornando `resource.CreateTimeout = 10 * time.Minute`. `avalanche blockchain deploy --local` toma 60-120s; sin un timeout el proveedor se cuelga para siempre en caso de fallo.
 
-- [ ] **`l1_resource.go`: 10-minute Create timeout** — implement `Timeouts()` returning `resource.CreateTimeout = 10 * time.Minute`. `avalanche blockchain deploy --local` takes 60-120s; without a timeout the provider hangs forever on failure. 
+- [ ] **`contract_resource.go`: sondear `eth_chainId` antes de `forge create`** — después de que el Create de `claw1_l1` termina, el puerto RPC puede no aceptar conexiones aún. Sondear `eth_chainId` vía JSON-RPC en un bucle de reintento de 30s antes de invocar `forge create`.
 
-- [ ] **`contract_resource.go`: poll `eth_chainId` before `forge create`** — after `claw1_l1` Create exits, the RPC port may not yet accept connections. Poll `eth_chainId` via JSON-RPC in a 30s retry loop before invoking `forge create`. 
+- [ ] **`internal/provider/l1_resource_parse_test.go`**: tests unitarios para el parsing de stdout — cubrir regexes `rpcRe` y `keyRe` contra la muestra exacta de stdout de `avalanche blockchain deploy`.
 
-- [ ] **`internal/provider/l1_resource_parse_test.go`**: unit tests for stdout parsing — cover `rpcRe` and `keyRe` regexes against the exact `avalanche blockchain deploy` stdout sample in the design doc. Zero provider tests is too risky for a demo with one chance to succeed. 
+- [x] **`DividendDistributor.sol`: agregar a `foundry.toml`** — establecer `evm_version = "london"` antes del primer `forge build`.
 
-- [ ] **`api.events.ts`: poll for `network.json` existence** — on each 3s SSE tick, check if `.claw1/network.json` exists before reading. If missing, emit `{ status: "initializing" }`. Dashboard shows "Network initializing..." state. Makes dashboard startup-order-independent.
+## P0 — Hallazgos de revisión externa
 
-- [x] **`DividendDistributor.sol`: add to `foundry.toml`** — set `evm_version = "london"` before first `forge build`. Without it, compilation may fail against the AvalancheGo EVM fork.
+- [x] **Corregir inconsistencia de conteo de validadores** — Cambiar deploy `claw1_l1` a `--num-bootstrap-validators 5`. El dashboard muestra "5/5 healthy."
 
-## P0 — External review findings
+- [x] **Agregar fallback de demo pre-cocinada** — ejecutar `terraform apply` hasta completar. Confirmar producción de bloques. En el día de demo: `terraform destroy` luego `terraform apply` toma < 30s.
 
-- [x] **Fix validator count inconsistency** — Change `claw1_l1` deploy to `--num-bootstrap-validators 5`. Dashboard shows "5/5 healthy." Spec and dashboard must agree.
+- [ ] **Plan de respaldo del proveedor Terraform** — Si `contract_resource.go` no está completo para la hora 5, recurrir a: `main.tf` despliega solo `claw1_l1`, el despliegue de contratos corre vía `forge create` llamado desde un aprovisionador `null_resource` local-exec.
 
-- [x] **Add pre-baked demo fallback** — terraform apply: run `terraform apply` once to completion. Confirm block production. Leave running. On demo day, `terraform destroy` then `terraform apply` takes < 30s (network re-bootstraps from existing keys). Add a `demo/reset.sh` script that: (1) runs `terraform destroy`, (2) waits for clean, (3) runs `terraform apply`. Rehearse this twice.
+- [x] **Congelar el esquema `.claw1/network.json` inmediatamente** — Tanto el Builder 1 (Terraform) como el Builder 2 (Dashboard) dependen de este archivo.
 
-- [ ] **Terraform provider fallback plan** — If `contract_resource.go` is not complete by hour 5, fall back to: `main.tf` deploys only `claw1_l1`, contract deploy runs via `forge create` called from a `null_resource` local-exec provisioner. Same IaC story, less Go. Document the decision point in the build log.
+## P0 — Adiciones del día de build
 
-- [x] **Freeze `.claw1/network.json` schema immediately** — Both Builder 1 (Terraform) and Builder 2 (Dashboard) depend on this file. If the schema changes mid-build, the dashboard breaks. Define and commit the final schema NOW before either builder starts.
+- [ ] **`SovereigntyReceipt`: panel de recibo de distribución** — agregar un panel debajo de la fila de contratos mostrando salida a nivel de negocio: nombres de accionistas + porcentajes bps + hash de tx de distribución + montos CLAW por accionista.
 
-## P0 — Build day additions
+- [ ] **Convención de ruta network.json** — `l1_resource.go` debe escribir a `$HOME/.claw1/{name}/network.json`. Cuando Terraform corre en `terraform/`, una ruta relativa `.claw1/` crea `terraform/.claw1/` que es invisible para el dashboard y scripts. Usar `os.UserHomeDir()` en Go.
 
-- [ ] **`SovereigntyReceipt.tsx`: distribution receipt panel** — add a panel below the contracts row showing business-level output: shareholder names + bps percentages + distribution tx hash + per-shareholder CLAW amounts. This is what makes the receipt look like a compliance artifact instead of a chain monitor. Can be hardcoded/static initially; wire to contract events (`DividendDistributed`) once contract is live. Review feedback: judges evaluating "Automatización de Procesos Corporativos" need to see the business output, not just the deployed address.
+## P1 — Día de build (calidad de código)
 
-  Static mock structure for Builder 2 to start with:
-  ```ts
-  distribution: {
-    txHash: "0x...",
-    totalAmount: "1.0 CLAW",
-    timestamp: "2026-05-16T09:01:23Z",
-    recipients: [
-      { name: "Alice Morales", bps: 3000, amount: "0.30 CLAW" },
-      { name: "Bob Ramirez",   bps: 3000, amount: "0.30 CLAW" },
-      { name: "Carol Vega",    bps: 4000, amount: "0.40 CLAW" },
-    ]
-  }
-  ```
+- [ ] **`forge test` para DividendDistributor** — HECHO: 7 tests pasando (4 originales + 3 tests adicionales)
 
-- [ ] **network.json path convention** — `l1_resource.go` must write to `$HOME/.claw1/{name}/network.json` (not a repo-relative path). When Terraform runs in `terraform/`, a relative `.claw1/` path creates `terraform/.claw1/` which is invisible to the dashboard and scripts. Use `os.UserHomeDir()` in Go. Override supported via `CLAW1_DATA_DIR` env var. All scripts already updated to use `~/.claw1/claw1-demo-bank/network.json`.
+- [ ] **Preparación del pitch: pregunta sobre llave privada** — Cuando el líder de cumplimiento (juez CNBV) pregunte "¿cómo maneja la producción las llaves de firma?": *"Esta es una llave de prueba efímera fondeada solo para la devnet local. Los despliegues en producción usan OCI Vault: la llave privada se almacena en un módulo de seguridad de hardware y la firma PKCS#11 ocurre dentro de OCI. La llave nunca sale del HSM."*
 
-- [ ] **api.events.ts network.json path** — read from `$HOME/.claw1/claw1-demo-bank/network.json` (same absolute path convention as Go provider). Dashboard runs from `dashboard/` directory — relative `.claw1/` would miss the file.
+## P0 — Expansión compliance-as-code
 
-## P1 — Build day (code quality)
+- [ ] **`contracts/test/ComplianceRegistry.t.sol`** — 4 tests: el constructor almacena los 5 valores, evento `ConfigRecorded` emitido, `AllowlistChanged` emitido por `recordAllowlistChange()`, non-owner revierte.
 
-- [ ] **`forge test` for DividendDistributor** — DONE: 7 tests passing (4 original + 3 additional tests: test_bps_not_10000_revert, test_update_existing_shareholder, test_distribute_twice)
+- [ ] **`main.tf`: agregar recurso `claw1_contract.compliance`** — desplegar `ComplianceRegistry.sol` antes de `DividendDistributor`.
 
-- [ ] **`SovereigntyReceipt.tsx`: initializing state** — gray pulsing dots + "Waiting for network..." when `status: "initializing"`. Consistent with the compliance control room aesthetic.
+- [ ] **Dashboard Sovereignty Receipt: panel Compliance Posture** — lee la dirección ComplianceRegistry de `network.json contracts[]` por `name == "ComplianceRegistry"`. En cada tick SSE: `eth_call getConfig()` → mostrar badge de jurisdicción, estado del verificador KYC, admin TxAllowList.
 
-- [ ] **Pitch prep: private key question** — When the compliance lead (CNBV judge) asks "how does production handle signing keys?": *"This is an ephemeral test key funded only for the local devnet. Production deployments use OCI Vault: the private key is stored in a hardware security module and PKCS#11 signing happens inside OCI. The key never leaves the HSM."* Practice this answer before demo day.
+- [ ] **Script de demo: agregar paso `recordAllowlistChange()`** — al agregar un accionista a TxAllowList vía precompile, también llamar `cast send $REGISTRY recordAllowlistChange(address,uint8)` para registrarlo en la capa de evidencias.
 
-## P0 — Compliance-as-code expansion
+## P3 — Hoja de ruta post-hackathon
 
+- [ ] **Reemplazar el wrapping de `avalanche-cli` con P-Chain SDK** — `l1_resource.go` actualmente hace shell out a `avalanche blockchain create/deploy`. Post-hackathon: usar Go P-Chain SDK directamente. Esfuerzo: ~3-4 días humano / ~2h CC.
 
-- [ ] **`contracts/test/ComplianceRegistry.t.sol`** — 4 tests: constructor stores all 5 values, `ConfigRecorded` event emitted, `AllowlistChanged` emitted by `recordAllowlistChange()`, non-owner reverts. Bring total to 9 green tests (7 baseline + 2 new).
+- [ ] **Publicar `h9-systems/claw1` en Terraform Registry** — los usuarios enterprise necesitan que `source = "h9-systems/claw1"` funcione sin una ruta de proveedor local.
 
-- [ ] **`main.tf`: add `claw1_contract.compliance` resource** — deploy `ComplianceRegistry.sol` before `DividendDistributor`. `constructor_args = [tostring(claw1_l1.demo.chain_id), "<ewoq_addr>", "0x0...", "0", "demo"]`. `depends_on = [claw1_l1.demo]`. Update `claw1_contract.dividends` to `depends_on = [claw1_l1.demo, claw1_contract.compliance]`.
+- [ ] **`contract_resource.go`: reemplazar parsing de stdout con JSON-RPC** — parsear `forge create` stdout para "Deployed to: 0x..." es frágil. Post-hackathon: usar `eth_getTransactionReceipt` para obtener la dirección del contrato desde el hash de la transacción de despliegue.
 
-- [ ] **SovereigntyReceipt dashboard: Compliance Posture panel** — reads ComplianceRegistry address from `network.json contracts[]` by `name == "ComplianceRegistry"`. On every SSE tick: `eth_call getConfig()` → display jurisdiction badge, KYC verifier status (green/yellow), TxAllowList admin. Yellow = kycVerifier is 0x0 (enforcement disabled); red = registry not found.
+- [ ] **Perfiles de cumplimiento multi-jurisdicción** — `compliance_profile = "cnbv-mexico"` como atributo HCL de `claw1_l1` que auto-configura roles admin TxAllowList + sugiere el verificador KYC correcto + genera args de constructor `ComplianceRegistry` específicos por jurisdicción. Esfuerzo: ~3-4 semanas humano / ~1 semana CC.
 
-- [ ] **Demo script: add `recordAllowlistChange()` step** — when adding a shareholder to TxAllowList via precompile (`cast send 0x0200...0002 setAllowListRole`), also call `cast send $REGISTRY recordAllowlistChange(address,uint8)` to log it on the evidence layer. This is what the regulator sees.
+- [ ] **Diff de cumplimiento en `terraform plan`** — mostrar qué cambiará en la postura de cumplimiento antes del apply. Requiere leer el estado actual de la cadena en la fase de plan.
 
-## P3 — Post-hackathon roadmap
-
-- [ ] **Replace `avalanche-cli` wrapping with P-Chain SDK** — `l1_resource.go` currently shells out to `avalanche blockchain create/deploy` (maintenance-mode binary). Post-hackathon: use Go P-Chain SDK directly for proper Terraform resource lifecycle (update, import, drift detection). Effort: ~3-4 days human / ~2h CC.
-
-- [ ] **Publish `h9-systems/claw1` to Terraform Registry** — enterprise users need `source = "h9-systems/claw1"` to work without a local provider path. Requires signing and publishing the provider binary.
-
-- [ ] **`contract_resource.go`: replace stdout parsing with JSON-RPC** — parsing `forge create` stdout for "Deployed to: 0x..." is fragile. Post-hackathon: use `eth_getTransactionReceipt` to get the contract address from the deploy transaction hash instead.
-
-- [ ] **Multi-jurisdiction compliance profiles** — `compliance_profile = "cnbv-mexico"` as a `claw1_l1` HCL attribute that auto-configures TxAllowList admin roles + suggests the right KYC verifier + generates a jurisdiction-specific `ComplianceRegistry` constructor args set. Moat builder: switching cost grows with every jurisdiction added. Requires regulatory legal research per jurisdiction (CNBV Circular Única, SMV Panama Draft Bill 326, CVM Brazil). Effort: ~3-4 weeks human / ~1 week CC.
-
-- [ ] **Compliance diff in `terraform plan`** — show what the compliance posture will change before apply: "You are about to change kycVerifier from 0x0 to 0x[World ID]. This will require re-verification of existing shareholders." Requires reading current chain state in the plan phase. Effort: M.
-
-- [ ] **Auto-generated CNBV report** — query ComplianceRegistry + DividendDistributor event log for a date range, produce a PDF report the compliance officer can submit to CNBV. Requires understanding CNBV Circular Única reporting format. Phase 3 roadmap. Effort: XL.
+- [ ] **Reporte CNBV auto-generado** — consultar ComplianceRegistry + log de eventos DividendDistributor para un rango de fechas, producir un reporte PDF que el oficial de cumplimiento pueda enviar a CNBV. Fase 3 de la hoja de ruta.
