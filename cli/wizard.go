@@ -49,13 +49,12 @@ type wizardModel struct {
 }
 
 const (
-	tabNetworks = iota
+	tabOverview = iota
+	tabTrex
 	tabExplorer
 	tabContracts
-	tabWallets
-	tabSimulate
-	tabMonitoring
-	tabOCI
+	tabDeploy
+	tabCloud
 	numTabs
 )
 
@@ -127,35 +126,31 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 			m.syncFocus()
 		case "down":
 			switch {
-			case m.activeTab == tabNetworks:
+			case m.activeTab == tabDeploy:
 				m.deployCursor = (m.deployCursor + 1) % numDeployCursors
 			case m.activeTab == tabContracts:
 				m.itemCursor = clampCursor(m.itemCursor+1, len(loadNetworkSnapshot(m.target).contracts))
-			case m.activeTab == tabWallets:
+			case m.activeTab == tabTrex:
 				m.itemCursor = clampCursor(m.itemCursor+1, len(trexRecipients()))
-			case m.activeTab == tabSimulate:
-				m.itemCursor = clampCursor(m.itemCursor+1, len(trexRecipients()))
-			case m.activeTab == tabOCI && m.target == targetOCI:
+			case m.activeTab == tabCloud && m.target == targetOCI:
 				m.focus = (m.focus + 1) % numInputs
 			}
 			m.syncFocus()
 		case "up":
 			switch {
-			case m.activeTab == tabNetworks:
+			case m.activeTab == tabDeploy:
 				m.deployCursor = (m.deployCursor - 1 + numDeployCursors) % numDeployCursors
 			case m.activeTab == tabContracts:
 				m.itemCursor = clampCursor(m.itemCursor-1, len(loadNetworkSnapshot(m.target).contracts))
-			case m.activeTab == tabWallets:
+			case m.activeTab == tabTrex:
 				m.itemCursor = clampCursor(m.itemCursor-1, len(trexRecipients()))
-			case m.activeTab == tabSimulate:
-				m.itemCursor = clampCursor(m.itemCursor-1, len(trexRecipients()))
-			case m.activeTab == tabOCI && m.target == targetOCI:
+			case m.activeTab == tabCloud && m.target == targetOCI:
 				m.focus = (m.focus - 1 + numInputs) % numInputs
 			}
 			m.syncFocus()
 		case "enter":
 			switch m.activeTab {
-			case tabNetworks:
+			case tabDeploy:
 				if m.deployCursor == deployCursorDashboard {
 					m.action = "Dashboard opens after deployment. Run `claw1 receipt` to open it directly."
 				}
@@ -169,10 +164,7 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 				if len(snap.contracts) > 0 {
 					return m, copyToClipboard(snap.contracts[m.itemCursor].Address)
 				}
-			case tabWallets:
-				recipient := selectedTrexRecipient(m.itemCursor)
-				m.action = simulateTrexTransfer(m.target, recipient.Address, "1").Message
-			case tabSimulate:
+			case tabTrex:
 				recipient := selectedTrexRecipient(m.itemCursor)
 				m.action = simulateTrexTransfer(m.target, recipient.Address, "1").Message
 			}
@@ -191,28 +183,28 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 					return m, copyToClipboard(snap.contracts[m.itemCursor].Address)
 				}
 			}
-			if m.activeTab == tabWallets {
+			if m.activeTab == tabTrex {
 				recipient := selectedTrexRecipient(m.itemCursor)
 				return m, copyToClipboard(recipient.Address)
 			}
 		case "k", "K":
-			if m.activeTab == tabWallets {
+			if m.activeTab == tabTrex {
 				snap := loadNetworkSnapshot(m.target)
 				if snap.net != nil {
 					return m, copyToClipboard(hexPrivateKey(snap.net.DeployerPrivateKey))
 				}
 			}
 		case "i", "I":
-			if m.activeTab == tabNetworks {
+			if m.activeTab == tabDeploy {
 				m.enableICTT = !m.enableICTT
 			}
 		case "r", "R":
-			if m.activeTab == tabSimulate {
+			if m.activeTab == tabTrex {
 				recipient := selectedTrexRecipient(m.itemCursor)
 				m.action = simulateTrexTransfer(m.target, recipient.Address, "1").Message
 			}
 		case "t", "T":
-			if m.activeTab == tabWallets {
+			if m.activeTab == tabTrex {
 				recipient := selectedTrexRecipient(m.itemCursor)
 				sim := simulateTrexTransfer(m.target, recipient.Address, "1")
 				if !sim.Approved {
@@ -233,7 +225,7 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 		m.action = string(msg)
 	}
 
-	if m.activeTab == tabOCI && m.target == targetOCI {
+	if m.activeTab == tabCloud && m.target == targetOCI {
 		var cmd tea.Cmd
 		m.inputs[m.focus], cmd = m.inputs[m.focus].Update(msg)
 		return m, cmd
@@ -243,7 +235,7 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 
 func (m *wizardModel) syncFocus() {
 	for i := range m.inputs {
-		if m.activeTab == tabOCI && m.target == targetOCI && i == m.focus {
+		if m.activeTab == tabCloud && m.target == targetOCI && i == m.focus {
 			m.inputs[i].Focus()
 		} else {
 			m.inputs[i].Blur()
@@ -296,7 +288,7 @@ func (m wizardModel) validate() (deployConfig, error) {
 }
 
 func (m *wizardModel) activate() bool {
-	if m.activeTab != tabNetworks {
+	if m.activeTab != tabDeploy {
 		return false
 	}
 	switch m.deployCursor {
@@ -317,7 +309,7 @@ func (m *wizardModel) activate() bool {
 }
 
 func (m wizardModel) openDashboard() bool {
-	return m.activeTab == tabNetworks && m.deployCursor == deployCursorDashboard
+	return m.activeTab == tabDeploy && m.deployCursor == deployCursorDashboard
 }
 
 func (m wizardModel) View(width int) string {
@@ -328,27 +320,25 @@ func (m wizardModel) View(width int) string {
 	}
 
 	b.WriteString(styleBrand.Render("CLAW1") + "  " +
-		styleHeader.Render("PRIVATE L1 CONTROL PLANE") + "  " +
-		styleDim.Render("open-core stack for regulated Avalanche deployments") + "\n")
-	b.WriteString(styleKicker.Render("  Ship a sovereign chain with compliance, observability, and evidence in one run.") + "\n")
-	b.WriteString(styleDim.Render("  Embedded RPC explorer, contracts, wallets, simulations, monitoring, and deploy controls.") + "\n\n")
+		styleHeader.Render("PRIVATE L1 DEV CONSOLE") + "  " +
+		styleDim.Render("T-REX workbench for regulated Avalanche L1s") + "\n")
+	b.WriteString(styleKicker.Render("  Build, transfer, inspect, and prove CEQ flows without leaving the terminal.") + "\n")
+	b.WriteString(styleDim.Render("  Direct RPC explorer, T-REX wallet actions, contract map, deploy runbook, and cloud controls.") + "\n\n")
 	b.WriteString(m.tabs() + "\n\n")
 
 	switch m.activeTab {
-	case tabNetworks:
-		b.WriteString(m.networksTab(contentWidth))
+	case tabOverview:
+		b.WriteString(m.overviewTab(contentWidth))
+	case tabTrex:
+		b.WriteString(m.trexTab(contentWidth))
 	case tabExplorer:
 		b.WriteString(m.explorerTab(contentWidth))
 	case tabContracts:
 		b.WriteString(m.contractsTab(contentWidth))
-	case tabWallets:
-		b.WriteString(m.walletsTab(contentWidth))
-	case tabSimulate:
-		b.WriteString(m.simulateTab(contentWidth))
-	case tabMonitoring:
-		b.WriteString(m.monitoringTab(contentWidth))
-	case tabOCI:
-		b.WriteString(m.ociTab(contentWidth))
+	case tabDeploy:
+		b.WriteString(m.deployTab(contentWidth))
+	case tabCloud:
+		b.WriteString(m.cloudTab(contentWidth))
 	}
 
 	if m.err != "" {
@@ -358,14 +348,14 @@ func (m wizardModel) View(width int) string {
 		b.WriteString("\n" + styleYellow.Render("  "+m.action) + "\n")
 	}
 
-	b.WriteString(styleKeys.Render("\n  [←/→] tabs   [↑/↓] select   [Enter] simulate/activate   [T] send CEQ   [A] copy address   [Q] quit"))
+	b.WriteString(styleKeys.Render("\n  [←/→] workspace   [↑/↓] select   [Enter] primary   [T] send CEQ   [R] simulate   [A] copy   [Q] quit"))
 
 	inner := b.String()
 	return styleBox.Width(width - 4).Render(inner)
 }
 
 func (m wizardModel) tabs() string {
-	names := []string{"Networks", "Explorer", "Contracts", "Wallets", "Simulate", "Monitoring", "OCI"}
+	names := []string{"Overview", "T-REX", "Explorer", "Contracts", "Deploy", "Cloud"}
 	var parts []string
 	for i, name := range names {
 		if i == m.activeTab {
@@ -377,10 +367,50 @@ func (m wizardModel) tabs() string {
 	return strings.Join(parts, "")
 }
 
-func (m wizardModel) networksTab(contentWidth int) string {
+func (m wizardModel) overviewTab(contentWidth int) string {
 	var b strings.Builder
 	snap := loadNetworkSnapshot(m.target)
-	b.WriteString(styleSectionTitle.Render("NETWORKS") + "\n")
+	b.WriteString(styleSectionTitle.Render("OVERVIEW") + "\n")
+	if snap.net == nil {
+		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render("No L1 deployed. Go to Deploy, choose Developer appliance, then run Deploy / reconcile.") + "\n\n")
+		b.WriteString(styleSectionTitle.Render("NEXT ACTIONS") + "\n")
+		b.WriteString(featureRow("Deploy", "create local private L1 + T-REX contracts", contentWidth))
+		b.WriteString(featureRow("Cloud", "configure OCI only when production target is needed", contentWidth))
+		return b.String()
+	}
+	block := "unreachable"
+	if val, err := rpcString(snap.net.RPCURL, "eth_blockNumber", []any{}); err == nil {
+		block = hexBig(val).String()
+	}
+	token := trexTokenAddress(snap.net)
+	tokenStatus := "missing"
+	if token != "" {
+		tokenStatus = "deployed " + shortAddr(token)
+	}
+	transfers, _ := trexTransferHistory(m.target, demoWallets()[0].Address, 1)
+	lastTransfer := "none yet"
+	if len(transfers) > 0 {
+		lastTransfer = transfers[0].Amount + " CEQ at block " + transfers[0].Block + "  " + shortAddr(transfers[0].TxHash)
+	}
+	b.WriteString(featureRow("Network", snap.net.Name, contentWidth))
+	b.WriteString(featureRow("Chain ID", fmt.Sprintf("%d", snap.net.ChainID), contentWidth))
+	b.WriteString(featureRow("Latest block", block, contentWidth))
+	b.WriteString(featureRow("RPC", snap.net.RPCURL, contentWidth))
+	b.WriteString(featureRow("T-REX token", tokenStatus, contentWidth))
+	b.WriteString(featureRow("C-Chain rail", cChainRailStatus(), contentWidth))
+	b.WriteString(featureRow("Last CEQ transfer", lastTransfer, contentWidth))
+	b.WriteString("\n" + styleSectionTitle.Render("WORKFLOW") + "\n")
+	b.WriteString(featureRow("1. Deploy", "start or reconcile private L1 and contracts", contentWidth))
+	b.WriteString(featureRow("2. T-REX", "simulate and send CEQ transfers", contentWidth))
+	b.WriteString(featureRow("3. Explorer", "inspect blocks, tx hashes, and Transfer events", contentWidth))
+	b.WriteString(featureRow("4. Contracts", "copy deployed addresses for CLI/API work", contentWidth))
+	return b.String()
+}
+
+func (m wizardModel) deployTab(contentWidth int) string {
+	var b strings.Builder
+	snap := loadNetworkSnapshot(m.target)
+	b.WriteString(styleSectionTitle.Render("DEPLOY RUNBOOK") + "\n")
 	b.WriteString(m.optionRow(deployCursorLocal, m.target == targetLocal, "Developer appliance", "local private L1") + "\n")
 	b.WriteString(m.optionRow(deployCursorCChain, false, "C-Chain liquidity rail", "planned public liquidity endpoint") + "\n")
 	b.WriteString(m.optionRow(deployCursorOCI, m.target == targetOCI, "Production target", "OCI private L1") + "\n")
@@ -442,7 +472,7 @@ func (m wizardModel) explorerTab(contentWidth int) string {
 		return b.String()
 	}
 	if len(transfers) == 0 {
-		b.WriteString(styleDim.Render("  No CEQ Transfer events yet. Send from Wallets, then refresh this tab.") + "\n")
+		b.WriteString(styleDim.Render("  No CEQ Transfer events yet. Send from T-REX, then refresh this tab.") + "\n")
 		return b.String()
 	}
 	for _, tx := range transfers {
@@ -477,17 +507,25 @@ func (m wizardModel) contractsTab(contentWidth int) string {
 	return b.String()
 }
 
-func (m wizardModel) walletsTab(contentWidth int) string {
+func (m wizardModel) trexTab(contentWidth int) string {
 	var b strings.Builder
 	snap := loadNetworkSnapshot(m.target)
-	b.WriteString(styleSectionTitle.Render("WALLETS") + "\n")
+	b.WriteString(styleSectionTitle.Render("T-REX WORKSPACE") + "\n")
 	if snap.net == nil {
-		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render("Deploy a network first. Wallets need the selected L1 RPC.") + "\n")
+		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render("Deploy a network first. T-REX needs the selected L1 RPC and CEQ token.") + "\n")
 		return b.String()
 	}
 	token := trexTokenAddress(snap.net)
 	identity := identityRegistryAddress(snap.net)
 	sender := demoWallets()[0]
+	recipient := selectedTrexRecipient(m.itemCursor)
+	sim := simulateTrexTransfer(m.target, recipient.Address, "1")
+	verdict := sim.Message
+	if sim.Approved {
+		verdict = styleGreen.Render(sim.Message)
+	} else {
+		verdict = styleYellow.Render(sim.Message)
+	}
 	b.WriteString(featureRow("Sender", sender.Name+"  "+sender.Address, contentWidth))
 	b.WriteString(featureRow("Native balance", walletBalance(snap.net.RPCURL, sender.Address)+"  nonce "+walletNonce(snap.net.RPCURL, sender.Address), contentWidth))
 	if token == "" {
@@ -495,8 +533,11 @@ func (m wizardModel) walletsTab(contentWidth int) string {
 	} else {
 		b.WriteString(featureRow("CEQ balance", trexBalance(snap.net.RPCURL, token, sender.Address), contentWidth))
 	}
-	b.WriteString(featureRow("C-Chain", "planned rail; CEQ transfer is local private L1 today", contentWidth))
-	b.WriteString("\n" + styleSectionTitle.Render("SEND CEQ") + "\n")
+	b.WriteString(featureRow("Recipient", recipient.Name+"  "+recipient.Address, contentWidth))
+	b.WriteString(featureRow("Amount", "1 CEQ", contentWidth))
+	b.WriteString(featureRow("Simulation", verdict, contentWidth))
+	b.WriteString(featureRow("C-Chain", "planned rail; CEQ transfer executes on local private L1 today", contentWidth))
+	b.WriteString("\n" + styleSectionTitle.Render("RECIPIENTS") + "\n")
 	for i, r := range trexRecipients() {
 		prefix := "  "
 		name := styleValue.Render(fmt.Sprintf("%-24s", r.Name))
@@ -514,12 +555,12 @@ func (m wizardModel) walletsTab(contentWidth int) string {
 		}
 		b.WriteString(prefix + name + styleGreen.Render(r.Address) + styleDim.Render("  "+verified+"  "+ceq) + "\n")
 	}
-	b.WriteString(styleDim.Render("  Amount: 1 CEQ. Use `claw1 wallet send --to <addr> --amount <n>` for manual transfers.\n"))
 	b.WriteString("\n" + styleSectionTitle.Render("ACTIONS") + "\n")
-	b.WriteString(featureRow("Enter", "simulate selected 1 CEQ transfer", contentWidth))
+	b.WriteString(featureRow("Enter / R", "simulate selected 1 CEQ transfer", contentWidth))
 	b.WriteString(featureRow("T", "send selected 1 CEQ transfer if simulation passes", contentWidth))
 	b.WriteString(featureRow("A", "copy selected recipient address", contentWidth))
 	b.WriteString(featureRow("K", "copy deployer private key for local demo wallet", contentWidth))
+	b.WriteString(featureRow("CLI", "claw1 wallet send --to <addr> --amount <n> --json", contentWidth))
 	b.WriteString("\n" + styleSectionTitle.Render("TRANSFER HISTORY") + "\n")
 	transfers, err := trexTransferHistory(m.target, sender.Address, 6)
 	if err != nil {
@@ -538,56 +579,6 @@ func (m wizardModel) walletsTab(contentWidth int) string {
 	return b.String()
 }
 
-func (m wizardModel) simulateTab(contentWidth int) string {
-	var b strings.Builder
-	snap := loadNetworkSnapshot(m.target)
-	recipient := selectedTrexRecipient(m.itemCursor)
-	sim := simulateTrexTransfer(m.target, recipient.Address, "1")
-	b.WriteString(styleSectionTitle.Render("SIMULATE") + "\n")
-	b.WriteString(featureRow("Purpose", "preview a CEQ transfer against T-REX compliance before broadcast", contentWidth))
-	b.WriteString(featureRow("Scenario", "deployer sends 1 CEQ to selected recipient", contentWidth))
-	b.WriteString(featureRow("Recipient", recipient.Name+"  "+recipient.Address, contentWidth))
-	b.WriteString(featureRow("Verdict", sim.Message, contentWidth))
-	b.WriteString(featureRow("C-Chain check", "planned: simulate bridge receive before C-Chain liquidity rail", contentWidth))
-	if snap.net == nil {
-		b.WriteString("\n  " + dot(yellow) + "  " + styleYellow.Render("Deploy a network first.") + "\n")
-		return b.String()
-	}
-	b.WriteString(featureRow("T-REX token", trexTokenAddress(snap.net), contentWidth))
-	b.WriteString(featureRow("IdentityRegistry", identityRegistryAddress(snap.net), contentWidth))
-	b.WriteString("\n" + styleSectionTitle.Render("ACTIONS") + "\n")
-	b.WriteString(featureRow("Enter / R", "rerun selected transfer simulation", contentWidth))
-	if m.action != "" {
-		b.WriteString(featureRow("Last result", m.action, contentWidth))
-	}
-	return b.String()
-}
-
-func (m wizardModel) monitoringTab(contentWidth int) string {
-	var b strings.Builder
-	snap := loadNetworkSnapshot(m.target)
-	b.WriteString(styleSectionTitle.Render("MONITORING") + "\n")
-	if snap.net == nil {
-		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render("No network to monitor yet.") + "\n")
-		return b.String()
-	}
-	block := "unreachable"
-	if val, err := rpcString(snap.net.RPCURL, "eth_blockNumber", []any{}); err == nil {
-		block = val
-	}
-	explorer := "offline"
-	if explorerHealthy() {
-		explorer = "online"
-	}
-	b.WriteString(featureRow("RPC", snap.net.RPCURL, contentWidth))
-	b.WriteString(featureRow("Latest block", block, contentWidth))
-	b.WriteString(featureRow("Explorer", explorer, contentWidth))
-	b.WriteString(featureRow("C-Chain rail", cChainRailStatus(), contentWidth))
-	b.WriteString(featureRow("Tracked contracts", fmt.Sprintf("%d", len(snap.net.Contracts)), contentWidth))
-	b.WriteString(featureRow("Evidence path", filepath.Join(filepath.Dir(networkPath(m.target)), "evidence"), contentWidth))
-	return b.String()
-}
-
 func (m wizardModel) optionRow(cursor int, selected bool, label, desc string) string {
 	prefix := "  "
 	marker := circle()
@@ -595,7 +586,7 @@ func (m wizardModel) optionRow(cursor int, selected bool, label, desc string) st
 		marker = dot(green)
 	}
 	body := fmt.Sprintf("[ %s  %-28s %s ]", marker, label, desc)
-	if m.activeTab == tabNetworks && m.deployCursor == cursor {
+	if m.activeTab == tabDeploy && m.deployCursor == cursor {
 		prefix = styleGreen.Render("› ")
 		body = styleButtonActive.Render(body)
 	} else {
@@ -610,27 +601,27 @@ func (m wizardModel) primaryAction() string {
 		label = "Start OCI deployment"
 	}
 	body := styleButton.Render("[ " + label + " ]")
-	if m.activeTab == tabNetworks && m.deployCursor == deployCursorStart {
+	if m.activeTab == tabDeploy && m.deployCursor == deployCursorStart {
 		body = styleButtonActive.Render("[ " + label + " ]")
 	}
 	return "  " + body + "\n"
 }
 
-func (m wizardModel) ociTab(contentWidth int) string {
+func (m wizardModel) cloudTab(contentWidth int) string {
 	var b strings.Builder
 	if m.target != targetOCI {
-		b.WriteString(styleSectionTitle.Render("OCI CONFIG") + "\n")
-		b.WriteString(styleDim.Render("  Current rail is Developer appliance. Select Production target in Mission to edit OCI settings.\n"))
+		b.WriteString(styleSectionTitle.Render("CLOUD") + "\n")
+		b.WriteString(styleDim.Render("  Current target is Developer appliance. Select Production target in Deploy to edit cloud settings.\n"))
 		b.WriteString("\n")
-		b.WriteString(styleSectionTitle.Render("LOCAL REQUIREMENTS") + "\n")
+		b.WriteString(styleSectionTitle.Render("PRODUCTION CHECKLIST") + "\n")
 		b.WriteString(featureRow("forge", "build and deploy contracts", contentWidth))
 		b.WriteString(featureRow("avalanche-cli", "start the local network and L1", contentWidth))
 		b.WriteString(featureRow("terraform", "declare and apply infrastructure", contentWidth))
-		b.WriteString(featureRow("docker + jq", "support scripts and local tooling", contentWidth))
+		b.WriteString(featureRow("OCI destroy", "dry-run, inventory, destroy, verify, evidence", contentWidth))
 		return b.String()
 	}
 
-	b.WriteString(styleSectionTitle.Render("OCI PRODUCTION TARGET") + "\n")
+	b.WriteString(styleSectionTitle.Render("CLOUD PRODUCTION TARGET") + "\n")
 	b.WriteString(m.inputRow("Tenancy OCID", inTenancy))
 	b.WriteString(m.inputRow("User OCID", inUser))
 	b.WriteString(m.inputRow("Fingerprint", inFingerprint))
@@ -641,6 +632,9 @@ func (m wizardModel) ociTab(contentWidth int) string {
 	b.WriteString(m.inputRow("Shape", inShape))
 	b.WriteString(m.inputRow("OCPUs", inOcpus))
 	b.WriteString(m.inputRow("Memory (GB)", inMemory))
+	b.WriteString("\n" + styleSectionTitle.Render("DESTROY SAFETY") + "\n")
+	b.WriteString(featureRow("Default", "dry-run unless --yes is explicit", contentWidth))
+	b.WriteString(featureRow("Evidence", "--preserve-evidence is local-only; --evidence-bucket retains cloud data", contentWidth))
 	b.WriteString(styleDim.Render("\n  [↑/↓] move field. Secrets are read locally, not written to evidence.\n"))
 	return b.String()
 }

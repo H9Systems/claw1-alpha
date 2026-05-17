@@ -238,33 +238,26 @@ En modo programático, un dry-run OCI sin `--yes` termina con código `1` despu�
 ### Pantalla 1: Control plane con pestañas
 
 ```
-  CLAW1  PRIVATE L1 CONTROL PLANE  open-core stack for regulated Avalanche deployments
-  Ship a sovereign chain with compliance, observability, and evidence in one run.
+  CLAW1  PRIVATE L1 DEV CONSOLE  T-REX workbench for regulated Avalanche L1s
+  Build, transfer, inspect, and prove CEQ flows without leaving the terminal.
 
-  [Networks]    Explorer    Contracts    Wallets    Simulate    Monitoring    OCI
+  [Overview]    T-REX    Explorer    Contracts    Deploy    Cloud
 
-  NETWORKS
-  › [ ●  Developer appliance          local private L1 ]
-    [ ○  C-Chain liquidity rail        planned public liquidity endpoint ]
-    [ ○  Production target            OCI private L1 ]
-    [ ○  ICTT bridge to C-Chain        optional bridge workbench ]
-    [ ○  Deploy / reconcile            apply Terraform + contracts ]
-    [ ○  Open dashboard                post-deploy operations view ]
-
-  CURRENT ENVIRONMENT
+  OVERVIEW
   │  Name                  claw1demobank
   │  Chain ID              432260
+  │  Latest block          33
   │  RPC                   http://127.0.0.1:9654/...
-  │  Contracts             9 tracked
+  │  T-REX token           deployed 0x72FE…3124
+  │  Last CEQ transfer     1.0000 CEQ at block 33
 ```
 
-- **Networks** despliega o reconcilia local/OCI, muestra C-Chain como rail de liquidez planeado, activa ICTT y abre el dashboard
+- **Overview** muestra salud de la cadena, RPC, estado del token T-REX, estado del rail C-Chain y próximos pasos
+- **T-REX** es el workspace principal para balances CEQ, destinatarios, simulación de transferencia, envío e historial
 - **Explorer** muestra bloques, transacciones y eventos `Transfer` CEQ desde el RPC de la L1, sin depender de Blockscout
 - **Contracts** navega y copia direcciones desplegadas desde `network.json`
-- **Wallets** muestra balance nativo, balance CEQ, destinatarios, envío de 1 CEQ, historial y copia direcciones o llave demo local
-- **Simulate** previsualiza una transferencia CEQ contra las reglas T-REX antes de emitirla
-- **Monitoring** muestra RPC, bloque, explorer, estado del rail C-Chain y rutas de evidencia
-- **OCI** configura credenciales y shape de producción
+- **Deploy** despliega o reconcilia local/OCI, muestra C-Chain como rail de liquidez planeado, activa ICTT y abre el dashboard
+- **Cloud** configura credenciales de producción, shape y seguridad de destroy/evidencia
 
 ### Pantalla 2: Progreso del despliegue
 
