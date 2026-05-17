@@ -16,9 +16,7 @@ L1 permisionada de Avalanche con ERC-3643 / T-REX:
 
 ## Claw1
 
-```
-claw1 deploy
-```
+`claw1 deploy`
 
 - L1 permisionada con validadores
 - ERC-3643 / T-REX con IdentityRegistry
@@ -27,14 +25,12 @@ claw1 deploy
 
 ## La demo
 
-```
-claw1 demo
-```
+`claw1 demo`
 
 - L1 activa. Contratos de compliance desplegados.
 - Transfer a wallet verificada: aprobada
 - Transfer a wallet sin KYC: rechazada por el contrato
-- Evidence bundle: tx hashes, estado de compliance, log de rechazo
+- Evidence bundle: tx hashes, estado de compliance
 - OCI limpio al final
 
 ## Oracle Cloud
@@ -43,9 +39,7 @@ Solo Terraform provider para Avalanche + OCI.
 
 [avalanche-deploy](https://github.com/ava-labs/avalanche-deploy) no tiene provider para Oracle.
 
-```
-terraform apply
-```
+`terraform apply`
 
 Mismo HCL en local y en produccion.
 
@@ -83,7 +77,7 @@ SAM: USD 4.8B en 2024, proyectado USD 38.5B en 2033.
 
 SOM: por definir.
 
-Wedge inicial: developer appliance para equipos regulados en Latam.
+Wedge: developer appliance para equipos regulados en Latam.
 
 ## Repo
 
