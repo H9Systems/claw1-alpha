@@ -1,85 +1,85 @@
 # TODOS
 
-## P0 — Preparación de base
+## P0 — Foundation prep
 
-- [x] **Crear `.gitignore` con `.claw1/`** — `.claw1/network.json` contiene la llave privada del deployer con fondos. No debe confirmarse.
+- [x] **Create `.gitignore` with `.claw1/`** — `.claw1/network.json` contains the funded deployer private key. Must not be committed.
 
-- [x] **Agregar `AGENTS.md` para Codex** — symlink a `CLAUDE.md` para que Codex y Claude compartan las reglas del repo.
+- [x] **Add `AGENTS.md` for Codex** — symlink to `CLAUDE.md` so Codex and Claude share repo rules.
 
-- [x] **Agregar pitch deck estático** — `PITCH.md` → `/` con React + TanStack Router + pnpm; sin web wizard operativo.
+- [x] **Add static pitch deck** — `PITCH.md` → `/` with React + TanStack Router + pnpm; no operational web wizard.
 
-- [ ] **Convertir `claw1` en devtools TUI/CLI** — un solo motor para TUI y subcomandos programáticos: deploy, inspect, wallet, destroy, demo.
+- [ ] **Turn `claw1` into devtools TUI/CLI** — one engine for TUI and programmatic subcommands: deploy, inspect, wallet, destroy, demo.
 
-- [ ] **Destroy OCI fail-closed** — dry-run por defecto, inventario Terraform + OCI, `--yes` para scripts, evidencia local, verificación final y comandos manuales si queda algo.
+- [ ] **Fail-closed OCI destroy** — dry-run by default, Terraform + OCI inventory, `--yes` for scripts, local evidence, final verification, and manual commands if anything remains.
 
-- [ ] **Observabilidad sin Blockscout** — panel/CLI run-scoped para blocks, chain IDs, balances/nonces, tx lookup, contratos, eventos e ICM/ICTT.
+- [ ] **Observability without Blockscout** — run-scoped panel/CLI for blocks, chain IDs, balances/nonces, tx lookup, contracts, events, and ICM/ICTT.
 
-- [ ] **Wallets de prueba sin MetaMask** — crear/listar/fondear wallets demo, mostrar balances por C-chain/L1 y nunca guardar llaves privadas en evidencia.
+- [ ] **Test wallets without MetaMask** — create/list/fund demo wallets, show balances by C-chain/L1, and never store private keys in evidence.
 
-- [x] **Escribir `preflight.sh`** — 2 verificaciones de puerta antes de `terraform apply`:
-  1. `forge --version` (Foundry en PATH)
-  2. `avalanche network list` no muestra redes obsoletas
+- [x] **Write `preflight.sh`** — 2 gate checks before `terraform apply`:
+  1. `forge --version` (Foundry on PATH)
+  2. `avalanche network list` shows no stale networks
 
-## P0 — Día de build (prioridades de implementación)
+## P0 — Build day (implementation priorities)
 
-- [ ] **`l1_resource.go`: Create idempotente** — verificar `avalanche network list` antes de llamar `avalanche blockchain create`. Si existe una L1 con el mismo nombre, omitir create. Hace que `terraform apply` sea seguro de re-ejecutar.
+- [ ] **`l1_resource.go`: idempotent Create** — check `avalanche network list` before calling `avalanche blockchain create`. If L1 with same name exists, skip create. Makes `terraform apply` safe to re-run.
 
-- [ ] **`contract_resource.go`: auto-leer llave privada** — leer llave privada del deployer desde `.claw1/network.json`. NO requerir variable env `CLAW1_DEPLOYER_PRIVATE_KEY`.
+- [ ] **`contract_resource.go`: auto-read private key** — read deployer private key from `.claw1/network.json`. Do NOT require `CLAW1_DEPLOYER_PRIVATE_KEY` env var.
 
-- [ ] **`contract_resource.go`: log a `.claw1/contract-deploy.log`** — escribir stdout/stderr de `forge create` a este archivo. Artefacto forense si el despliegue falla.
+- [ ] **`contract_resource.go`: log to `.claw1/contract-deploy.log`** — write `forge create` stdout/stderr to this file. Forensic artifact if deploy fails.
 
-- [ ] **`l1_resource.go` Delete: solo estado** — llamar `resp.State.RemoveResource(ctx)` únicamente. NO ejecutar `avalanche network clean` — esa es una operación global que destruiría TODAS las redes locales en la máquina.
+- [ ] **`l1_resource.go` Delete: state-only** — call `resp.State.RemoveResource(ctx)` only. Do NOT run `avalanche network clean` — that is a global operation that would destroy ALL local networks on the machine.
 
-- [ ] **`l1_resource.go`: timeout Create de 10 minutos** — implementar `Timeouts()` retornando `resource.CreateTimeout = 10 * time.Minute`. `avalanche blockchain deploy --local` toma 60-120s; sin un timeout el proveedor se cuelga para siempre en caso de fallo.
+- [ ] **`l1_resource.go`: 10-minute Create timeout** — implement `Timeouts()` returning `resource.CreateTimeout = 10 * time.Minute`. `avalanche blockchain deploy --local` takes 60-120s; without a timeout the provider hangs forever on failure.
 
-- [ ] **`contract_resource.go`: sondear `eth_chainId` antes de `forge create`** — después de que el Create de `claw1_l1` termina, el puerto RPC puede no aceptar conexiones aún. Sondear `eth_chainId` vía JSON-RPC en un bucle de reintento de 30s antes de invocar `forge create`.
+- [ ] **`contract_resource.go`: poll `eth_chainId` before `forge create`** — after `claw1_l1` Create exits, the RPC port may not yet accept connections. Poll `eth_chainId` via JSON-RPC in a 30s retry loop before invoking `forge create`.
 
-- [ ] **`internal/provider/l1_resource_parse_test.go`**: tests unitarios para el parsing de stdout — cubrir regexes `rpcRe` y `keyRe` contra la muestra exacta de stdout de `avalanche blockchain deploy`.
+- [ ] **`internal/provider/l1_resource_parse_test.go`**: unit tests for stdout parsing — cover `rpcRe` and `keyRe` regexes against the exact `avalanche blockchain deploy` stdout sample.
 
-- [x] **`DividendDistributor.sol`: agregar a `foundry.toml`** — establecer `evm_version = "london"` antes del primer `forge build`.
+- [x] **`DividendDistributor.sol`: add to `foundry.toml`** — set `evm_version = "london"` before first `forge build`.
 
-## P0 — Hallazgos de revisión externa
+## P0 — External review findings
 
-- [x] **Corregir inconsistencia de conteo de validadores** — Cambiar deploy `claw1_l1` a `--num-bootstrap-validators 5`. El dashboard muestra "5/5 healthy."
+- [x] **Fix validator count inconsistency** — Change `claw1_l1` deploy to `--num-bootstrap-validators 5`. Dashboard shows "5/5 healthy."
 
-- [x] **Agregar fallback de demo pre-cocinada** — ejecutar `terraform apply` hasta completar. Confirmar producción de bloques. En el día de demo: `terraform destroy` luego `terraform apply` toma < 30s.
+- [x] **Add pre-baked demo fallback** — run `terraform apply` to completion. Confirm block production. On demo day: `terraform destroy` then `terraform apply` takes < 30s.
 
-- [ ] **Plan de respaldo del proveedor Terraform** — Si `contract_resource.go` no está completo para la hora 5, recurrir a: `main.tf` despliega solo `claw1_l1`, el despliegue de contratos corre vía `forge create` llamado desde un aprovisionador `null_resource` local-exec.
+- [ ] **Terraform provider fallback plan** — If `contract_resource.go` is not complete by hour 5, fall back to: `main.tf` deploys only `claw1_l1`, contract deploy runs via `forge create` called from a `null_resource` local-exec provisioner.
 
-- [x] **Congelar el esquema `.claw1/network.json` inmediatamente** — Tanto el Builder 1 (Terraform) como el Builder 2 (Dashboard) dependen de este archivo.
+- [x] **Freeze `.claw1/network.json` schema immediately** — Both Builder 1 (Terraform) and Builder 2 (Dashboard) depend on this file.
 
-## P0 — Adiciones del día de build
+## P0 — Build day additions
 
-- [ ] **`SovereigntyReceipt`: panel de recibo de distribución** — agregar un panel debajo de la fila de contratos mostrando salida a nivel de negocio: nombres de accionistas + porcentajes bps + hash de tx de distribución + montos CLAW por accionista.
+- [ ] **`SovereigntyReceipt`: distribution receipt panel** — add a panel below the contracts row showing business-level output: shareholder names + bps percentages + distribution tx hash + per-shareholder CLAW amounts.
 
-- [ ] **Convención de ruta network.json** — `l1_resource.go` debe escribir a `$HOME/.claw1/{name}/network.json`. Cuando Terraform corre en `terraform/`, una ruta relativa `.claw1/` crea `terraform/.claw1/` que es invisible para el dashboard y scripts. Usar `os.UserHomeDir()` en Go.
+- [ ] **network.json path convention** — `l1_resource.go` must write to `$HOME/.claw1/{name}/network.json`. When Terraform runs in `terraform/`, a relative `.claw1/` path creates `terraform/.claw1/` which is invisible to the dashboard and scripts. Use `os.UserHomeDir()` in Go.
 
-## P1 — Día de build (calidad de código)
+## P1 — Build day (code quality)
 
-- [ ] **`forge test` para DividendDistributor** — HECHO: 7 tests pasando (4 originales + 3 tests adicionales)
+- [ ] **`forge test` for DividendDistributor** — DONE: 7 tests passing (4 original + 3 additional)
 
-- [ ] **Preparación del pitch: pregunta sobre llave privada** — Cuando el líder de cumplimiento (juez CNBV) pregunte "¿cómo maneja la producción las llaves de firma?": *"Esta es una llave de prueba efímera fondeada solo para la devnet local. Los despliegues en producción usan OCI Vault: la llave privada se almacena en un módulo de seguridad de hardware y la firma PKCS#11 ocurre dentro de OCI. La llave nunca sale del HSM."*
+- [ ] **Pitch prep: private key question** — When the compliance lead (CNBV judge) asks "how does production handle signing keys?": *"This is an ephemeral test key funded only for the local devnet. Production deployments use OCI Vault: the private key is stored in a hardware security module and PKCS#11 signing happens inside OCI. The key never leaves the HSM."*
 
-## P0 — Expansión compliance-as-code
+## P0 — Compliance-as-code expansion
 
-- [ ] **`contracts/test/ComplianceRegistry.t.sol`** — 4 tests: el constructor almacena los 5 valores, evento `ConfigRecorded` emitido, `AllowlistChanged` emitido por `recordAllowlistChange()`, non-owner revierte.
+- [ ] **`contracts/test/ComplianceRegistry.t.sol`** — 4 tests: constructor stores all 5 values, `ConfigRecorded` event emitted, `AllowlistChanged` emitted by `recordAllowlistChange()`, non-owner reverts.
 
-- [ ] **`main.tf`: agregar recurso `claw1_contract.compliance`** — desplegar `ComplianceRegistry.sol` antes de `DividendDistributor`.
+- [ ] **`main.tf`: add `claw1_contract.compliance` resource** — deploy `ComplianceRegistry.sol` before `DividendDistributor`.
 
-- [ ] **Dashboard Sovereignty Receipt: panel Compliance Posture** — lee la dirección ComplianceRegistry de `network.json contracts[]` por `name == "ComplianceRegistry"`. En cada tick SSE: `eth_call getConfig()` → mostrar badge de jurisdicción, estado del verificador KYC, admin TxAllowList.
+- [ ] **SovereigntyReceipt dashboard: Compliance Posture panel** — reads ComplianceRegistry address from `network.json contracts[]` by `name == "ComplianceRegistry"`. On every SSE tick: `eth_call getConfig()` → display jurisdiction badge, KYC verifier status, TxAllowList admin.
 
-- [ ] **Script de demo: agregar paso `recordAllowlistChange()`** — al agregar un accionista a TxAllowList vía precompile, también llamar `cast send $REGISTRY recordAllowlistChange(address,uint8)` para registrarlo en la capa de evidencias.
+- [ ] **Demo script: add `recordAllowlistChange()` step** — when adding a shareholder to TxAllowList via precompile, also call `cast send $REGISTRY recordAllowlistChange(address,uint8)` to log it on the evidence layer.
 
-## P3 — Hoja de ruta post-hackathon
+## P3 — Post-hackathon roadmap
 
-- [ ] **Reemplazar el wrapping de `avalanche-cli` con P-Chain SDK** — `l1_resource.go` actualmente hace shell out a `avalanche blockchain create/deploy`. Post-hackathon: usar Go P-Chain SDK directamente. Esfuerzo: ~3-4 días humano / ~2h CC.
+- [ ] **Replace `avalanche-cli` wrapping with P-Chain SDK** — `l1_resource.go` currently shells out to `avalanche blockchain create/deploy`. Post-hackathon: use Go P-Chain SDK directly for proper Terraform resource lifecycle. Effort: ~3-4 days human / ~2h CC.
 
-- [ ] **Publicar `h9-systems/claw1` en Terraform Registry** — los usuarios enterprise necesitan que `source = "h9-systems/claw1"` funcione sin una ruta de proveedor local.
+- [ ] **Publish `h9-systems/claw1` to Terraform Registry** — enterprise users need `source = "h9-systems/claw1"` to work without a local provider path.
 
-- [ ] **`contract_resource.go`: reemplazar parsing de stdout con JSON-RPC** — parsear `forge create` stdout para "Deployed to: 0x..." es frágil. Post-hackathon: usar `eth_getTransactionReceipt` para obtener la dirección del contrato desde el hash de la transacción de despliegue.
+- [ ] **`contract_resource.go`: replace stdout parsing with JSON-RPC** — parsing `forge create` stdout for "Deployed to: 0x..." is fragile. Post-hackathon: use `eth_getTransactionReceipt` instead.
 
-- [ ] **Perfiles de cumplimiento multi-jurisdicción** — `compliance_profile = "cnbv-mexico"` como atributo HCL de `claw1_l1` que auto-configura roles admin TxAllowList + sugiere el verificador KYC correcto + genera args de constructor `ComplianceRegistry` específicos por jurisdicción. Esfuerzo: ~3-4 semanas humano / ~1 semana CC.
+- [ ] **Multi-jurisdiction compliance profiles** — `compliance_profile = "cnbv-mexico"` as a `claw1_l1` HCL attribute that auto-configures TxAllowList admin roles + suggests the right KYC verifier + generates jurisdiction-specific `ComplianceRegistry` constructor args. Effort: ~3-4 weeks human / ~1 week CC.
 
-- [ ] **Diff de cumplimiento en `terraform plan`** — mostrar qué cambiará en la postura de cumplimiento antes del apply. Requiere leer el estado actual de la cadena en la fase de plan.
+- [ ] **Compliance diff in `terraform plan`** — show what the compliance posture will change before apply. Requires reading current chain state in the plan phase.
 
-- [ ] **Reporte CNBV auto-generado** — consultar ComplianceRegistry + log de eventos DividendDistributor para un rango de fechas, producir un reporte PDF que el oficial de cumplimiento pueda enviar a CNBV. Fase 3 de la hoja de ruta.
+- [ ] **Auto-generated CNBV report** — query ComplianceRegistry + DividendDistributor event log for a date range, produce a PDF report the compliance officer can submit to CNBV. Phase 3 roadmap.
