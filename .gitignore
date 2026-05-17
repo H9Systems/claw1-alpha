@@ -15,6 +15,9 @@ contracts/out/
 contracts/cache/
 contracts/broadcast/
 
+# ICTT + teleporter forge dependency (installed by scripts/ictt-setup.sh)
+contracts/lib/avalanche-interchain-token-transfer/
+
 # Go build artifacts
 terraform/providers/terraform-provider-claw1/dist/
 terraform/providers/terraform-provider-claw1/terraform-provider-claw1
@@ -42,3 +45,4 @@ openclaw-sidecar/.venv/
 .DS_Store
 .gstack/
 cli/claw1
+contracts/.git/

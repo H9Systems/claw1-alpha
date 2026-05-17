@@ -15,6 +15,9 @@ remappings = [
     "@T-REX/=lib/T-REX/contracts/",
     "forge-std/=lib/forge-std/src/",
     "@ictt/=lib/avalanche-interchain-token-transfer/contracts/src/",
+    "@teleporter/=lib/avalanche-interchain-token-transfer/contracts/lib/teleporter/contracts/src/Teleporter/",
+    "@avalabs/subnet-evm-contracts@1.2.0/=lib/avalanche-interchain-token-transfer/contracts/lib/teleporter/contracts/lib/subnet-evm/contracts/",
+    "@openzeppelin/contracts@4.8.1/=lib/openzeppelin-contracts/contracts/",
 ]
 
 [profile.default.fuzz]

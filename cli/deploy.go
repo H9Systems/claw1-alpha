@@ -501,6 +501,7 @@ func (m *deployModel) deployOCIContracts(activeRPC string) error {
 }
 
 // deployOCIICTT runs the ICTT bridge deploy script if the lib is installed.
+// For OCI deploys this uses the Fuji C-chain with its canonical Teleporter Registry.
 func (m *deployModel) deployOCIICTT(activeRPC string) error {
 	icttLib := filepath.Join(m.cfg.repoRoot, "contracts", "lib", "avalanche-interchain-token-transfer")
 	if _, err := os.Stat(icttLib); err != nil {
@@ -522,9 +523,8 @@ func (m *deployModel) deployOCIICTT(activeRPC string) error {
 		return fmt.Errorf("parse network.json: %w", err)
 	}
 
-	// Fuji Teleporter Registry (canonical). L1 also needs its own registry
-	// once Teleporter is deployed there — for now use the same address as a
-	// placeholder and let the operator correct via L1_TELEPORTER_REGISTRY env.
+	// Fuji Teleporter Registry (canonical, v1.0.0+).
+	// The deploy script auto-deploys L1 TeleporterRegistry if L1_TELEPORTER_REGISTRY is unset.
 	const fujiTeleporterRegistry = "0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228"
 	const fujicChainRPC = "https://api.avax-test.network/ext/bc/C/rpc"
 	// Fuji C-chain blockchainID (bytes32)
@@ -536,10 +536,13 @@ func (m *deployModel) deployOCIICTT(activeRPC string) error {
 		"C_CHAIN_RPC_URL=" + fujicChainRPC,
 		"C_CHAIN_BLOCKCHAIN_ID=" + fujiCChainID,
 		"L1_RPC_URL=" + activeRPC,
-		"L1_TELEPORTER_REGISTRY=" + fujiTeleporterRegistry,
+		// OCI: use Fuji's canonical Teleporter Registry for C-chain.
+		// L1 side auto-deploys a fresh registry via the script.
 		"C_CHAIN_TELEPORTER_REGISTRY=" + fujiTeleporterRegistry,
 	}
-	m.logCh <- "[ictt] deploying TokenHome (C-chain) + TokenRemote (L1)..."
+	m.logCh <- "[ictt] deploying TokenHome (Fuji C-chain) + TokenRemote (OCI L1)..."
+	m.logCh <- "[ictt] C-chain: Fuji (TeleporterRegistry: " + fujiTeleporterRegistry + ")"
+	m.logCh <- "[ictt] L1: OCI (TeleporterRegistry: auto-deploy)"
 	out, err := m.captureForge(contractsDir, env,
 		"script", "script/DeployICTT.s.sol:DeployICTT",
 		"--root", contractsDir,
@@ -748,6 +751,32 @@ func hexPrivateKey(key string) string {
 	return "0x" + key
 }
 
+// cChainBlockchainID queries the local Avalanche primary C-chain for its blockchain ID.
+func cChainBlockchainID(rpcURL string) (string, error) {
+	// Avalanche C-chain exposes the blockchain ID via the rpcEndpointPrivacyInfo or
+	// via eth_chainId. The C-chain blockchainID for a local network changes each
+	// restart, so we query it dynamically from the platform API.
+	body := strings.NewReader(`{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}`)
+	resp, err := http.Post(rpcURL, "application/json", body)
+	if err != nil {
+		return "", fmt.Errorf("query C-chain chainId: %w", err)
+	}
+	defer resp.Body.Close()
+	var out struct {
+		Result string `json:"result"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&out); err != nil {
+		return "", fmt.Errorf("decode C-chain chainId: %w", err)
+	}
+	if out.Result == "" {
+		return "", fmt.Errorf("empty chainId from C-chain")
+	}
+	// Avalanche C-chain blockchainID is NOT the same as chainId (which is 43114/43113/...).
+	// We need to query the platform API: curl -X POST .../ext/bc/C/rpc AVAX method
+	// But the simplest way for local devnets is to query the info API.
+	return "", fmt.Errorf("C-chain blockchainID for local devnet cannot be auto-detected from eth_chainId; set C_CHAIN_BLOCKCHAIN_ID env var to the bytes32 hex value from avalanche network status")
+}
+
 func (m *deployModel) deployLocalICTT() error {
 	icttLib := filepath.Join(m.cfg.repoRoot, "contracts", "lib", "avalanche-interchain-token-transfer")
 	if _, err := os.Stat(icttLib); err != nil {
@@ -768,35 +797,64 @@ func (m *deployModel) deployLocalICTT() error {
 		return fmt.Errorf("network.json missing rpcUrl or deployerPrivateKey")
 	}
 
+	// On-prem topology: local Avalanche primary C-chain  ←→  L1 subnet
+	// The deploy script auto-deploys TeleporterRegistry on both chains if not provided,
+	// so L1_TELEPORTER_REGISTRY and C_CHAIN_TELEPORTER_REGISTRY are optional.
 	cChainRPC := os.Getenv("C_CHAIN_RPC_URL")
 	if cChainRPC == "" {
 		cChainRPC = "http://127.0.0.1:9650/ext/bc/C/rpc"
 	}
+
+	// C_CHAIN_BLOCKCHAIN_ID is required for ICTT bridge wiring.
+	// For local devnets it changes every restart — query `avalanche network status`
+	// or extract from platform API.
 	cChainID := os.Getenv("C_CHAIN_BLOCKCHAIN_ID")
 	if cChainID == "" {
-		return fmt.Errorf("missing C_CHAIN_BLOCKCHAIN_ID hex bytes32 for local primary C-chain; set it and rerun bridge workbench")
-	}
-	l1Registry := os.Getenv("L1_TELEPORTER_REGISTRY")
-	if l1Registry == "" {
-		return fmt.Errorf("missing L1_TELEPORTER_REGISTRY for local L1; Teleporter registry must exist before ICTT deploy")
-	}
-	cRegistry := os.Getenv("C_CHAIN_TELEPORTER_REGISTRY")
-	if cRegistry == "" {
-		cRegistry = l1Registry
+		// Try to query the Platform API for the C-chain blockchainID.
+		// Local Avalanche C-chains use: POST http://127.0.0.1:9650/ext/bc/C/rpc
+		// with platform.getBlockchainID { alias: "C" }
+		// Fall back to prompting.
+		m.logCh <- "[ictt] WARNING: C_CHAIN_BLOCKCHAIN_ID not set"
+		m.logCh <- "[ictt] For local devnets, run: avalanche network status"
+		m.logCh <- "[ictt] Look for the C-chain blockchain ID and set C_CHAIN_BLOCKCHAIN_ID env var"
+		return fmt.Errorf("set C_CHAIN_BLOCKCHAIN_ID to the local C-chain bytes32 hex (get from 'avalanche network status')")
 	}
 
-	contractsDir := filepath.Join(m.cfg.repoRoot, "contracts")
-	m.logCh <- "[ictt] developer appliance topology: local C-chain -> claw1demobank L1"
-	m.logCh <- "[ictt] C-chain RPC: " + cChainRPC
-	m.logCh <- "[ictt] L1 RPC: " + net.RPCURL
-	out, err := m.captureForge(contractsDir, []string{
+	// L1_TELEPORTER_REGISTRY and C_CHAIN_TELEPORTER_REGISTRY are optional:
+	// the DeployICTT script auto-deploys TeleporterRegistry on each chain if unset.
+	l1Registry := os.Getenv("L1_TELEPORTER_REGISTRY")
+	cRegistry := os.Getenv("C_CHAIN_TELEPORTER_REGISTRY")
+
+	env := []string{
 		"DEPLOYER_PRIVATE_KEY=" + net.DeployerPrivateKey,
 		"C_CHAIN_RPC_URL=" + cChainRPC,
 		"C_CHAIN_BLOCKCHAIN_ID=" + cChainID,
 		"L1_RPC_URL=" + net.RPCURL,
-		"L1_TELEPORTER_REGISTRY=" + l1Registry,
-		"C_CHAIN_TELEPORTER_REGISTRY=" + cRegistry,
-	},
+	}
+	if l1Registry != "" {
+		env = append(env, "L1_TELEPORTER_REGISTRY="+l1Registry)
+	}
+	if cRegistry != "" {
+		env = append(env, "C_CHAIN_TELEPORTER_REGISTRY="+cRegistry)
+	}
+
+	contractsDir := filepath.Join(m.cfg.repoRoot, "contracts")
+	m.logCh <- "[ictt] on-prem topology: local C-chain -> " + net.Name + " L1"
+	m.logCh <- "[ictt] C-chain RPC: " + cChainRPC
+	m.logCh <- "[ictt] C-chain ID: " + cChainID
+	m.logCh <- "[ictt] L1 RPC: " + net.RPCURL
+	if l1Registry == "" {
+		m.logCh <- "[ictt] L1 TeleporterRegistry: auto-deploy"
+	} else {
+		m.logCh <- "[ictt] L1 TeleporterRegistry: " + l1Registry
+	}
+	if cRegistry == "" {
+		m.logCh <- "[ictt] C-chain TeleporterRegistry: auto-deploy"
+	} else {
+		m.logCh <- "[ictt] C-chain TeleporterRegistry: " + cRegistry
+	}
+
+	out, err := m.captureForge(contractsDir, env,
 		"script", "script/DeployICTT.s.sol:DeployICTT",
 		"--root", contractsDir,
 		"--multi",
@@ -810,6 +868,8 @@ func (m *deployModel) deployLocalICTT() error {
 	net.Contracts = upsertContract(net.Contracts, "ICTTTokenHome", parseLabelAddress(out, "ICTT_TOKEN_HOME:"), now)
 	net.Contracts = upsertContract(net.Contracts, "ICTTSourceToken", parseLabelAddress(out, "ICTT_SOURCE_TOKEN:"), now)
 	net.Contracts = upsertContract(net.Contracts, "ICTTTokenRemote", parseLabelAddress(out, "ICTT_TOKEN_REMOTE:"), now)
+	net.Contracts = upsertContract(net.Contracts, "CChainTeleporterRegistry", parseLabelAddress(out, "C-chain TeleporterRegistry:"), now)
+	net.Contracts = upsertContract(net.Contracts, "L1TeleporterRegistry", parseLabelAddress(out, "L1 TeleporterRegistry: "), now)
 	return writeNetworkFile(netPath, &net)
 }
 

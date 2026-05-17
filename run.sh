@@ -193,12 +193,13 @@ if [ "$OCI_MODE" = true ]; then
       echo "  WARNING: ICTT lib not installed — run: ./scripts/ictt-setup.sh"
     else
       step "4c/5" "Deploy ICTT bridge (TokenHome + TokenRemote)"
+      echo "  C-chain: Fuji (TeleporterRegistry: 0xF86Cb...B228)"
+      echo "  L1: OCI (TeleporterRegistry: auto-deploy)"
       BLOCKCHAIN_ID=$(jq -r '.blockchainId // ""' "$OCI_NETWORK_JSON")
       ICTT_OUT=$(DEPLOYER_PRIVATE_KEY="$DEPLOYER_KEY" \
         C_CHAIN_RPC_URL="https://api.avax-test.network/ext/bc/C/rpc" \
         C_CHAIN_BLOCKCHAIN_ID="0x7fc93d85c6d62be589232824d4c06ca2f89b8800dc83c98a804fcddabb3ae2d5" \
         L1_RPC_URL="$ACTIVE_RPC" \
-        L1_TELEPORTER_REGISTRY="0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228" \
         C_CHAIN_TELEPORTER_REGISTRY="0xF86Cb19Ad8405AEFa7d09C778215D2Cb6eBfB228" \
         forge script "script/DeployICTT.s.sol:DeployICTT" \
           --root "$CONTRACTS_DIR" \
@@ -332,6 +333,92 @@ else
   echo "$ERC3643_OUT"
 fi
 
+# ── 4c. Deploy ICTT bridge (optional, --ictt) ───────────────────────────────
+
+ICTT_HOME_ADDR=""
+ICTT_REMOTE_ADDR=""
+
+if [ "$ICTT_MODE" = true ]; then
+  ICTT_LIB="$REPO_ROOT/contracts/lib/avalanche-interchain-token-transfer"
+  if [ ! -d "$ICTT_LIB" ]; then
+    echo "  WARNING: ICTT lib not installed — run: ./scripts/ictt-setup.sh"
+  elif [ ! -f "$NETWORK_JSON" ]; then
+    echo "  WARNING: $NETWORK_JSON not found — skipping ICTT deploy."
+  else
+    step "4c/5" "Deploy ICTT bridge (on-prem: local C-chain -> L1)"
+
+    LOCAL_RPC=$(jq -r .rpcUrl "$NETWORK_JSON" 2>/dev/null)
+    LOCAL_DEPLOYER_KEY=$(jq -r .deployerPrivateKey "$NETWORK_JSON" 2>/dev/null)
+
+    # Auto-detect C-chain RPC
+    C_CHAIN_RPC="${C_CHAIN_RPC_URL:-http://127.0.0.1:9650/ext/bc/C/rpc}"
+
+    # C-chain blockchainID is required and changes per local devnet restart.
+    # Try to extract from Avalanche CLI output, or require env var.
+    if [ -z "${C_CHAIN_BLOCKCHAIN_ID:-}" ]; then
+      echo "  Querying local C-chain blockchainID via platform API..."
+      C_CHAIN_ID_HEX=$(curl -sf -X POST http://127.0.0.1:9650/ext/bc/C/rpc \
+        -H 'Content-Type: application/json' \
+        -d '{"jsonrpc":"2.0","method":"eth_chainId","params":[],"id":1}' \
+        2>/dev/null | jq -r '.result // empty')
+      if [ -n "$C_CHAIN_ID_HEX" ]; then
+        # eth_chainId returns the EVM chain ID (e.g. 0x65), not the blockchainID.
+        # For local devnets, use avalanche CLI to get the C-chain blockchainID.
+        echo "  WARNING: Could not auto-detect C-chain blockchainID from eth_chainId."
+        echo "  The blockchainID (bytes32 hex) changes each local devnet restart."
+        echo "  Get it with:  avalanche network status"
+        echo "  Then set:     export C_CHAIN_BLOCKCHAIN_ID=<hex>"
+        C_CHAIN_ID_HEX=""
+      fi
+      if [ -z "${C_CHAIN_BLOCKCHAIN_ID:-}" ]; then
+        echo "  ERROR: C_CHAIN_BLOCKCHAIN_ID env var is required for on-prem ICTT."
+        echo "  Run 'avalanche network status' to find the C-chain blockchain ID,"
+        echo "  then: export C_CHAIN_BLOCKCHAIN_ID=0x..."
+        echo "  Skipping ICTT deploy."
+        ICTT_MODE=false
+      fi
+    fi
+
+    if [ "$ICTT_MODE" = true ]; then
+      ICTT_ENV="DEPLOYER_PRIVATE_KEY=$LOCAL_DEPLOYER_KEY C_CHAIN_RPC_URL=$C_CHAIN_RPC C_CHAIN_BLOCKCHAIN_ID=$C_CHAIN_BLOCKCHAIN_ID L1_RPC_URL=$LOCAL_RPC"
+      # L1_TELEPORTER_REGISTRY and C_CHAIN_TELEPORTER_REGISTRY are optional:
+      # the DeployICTT script auto-deploys TeleporterRegistry on each chain if unset.
+      echo "  Deploying TokenHome on C-chain + TokenRemote on L1..."
+      echo "  C-chain RPC: $C_CHAIN_RPC"
+      echo "  L1 RPC:     $LOCAL_RPC"
+      ICTT_OUT=$(DEPLOYER_PRIVATE_KEY="$LOCAL_DEPLOYER_KEY" \
+        C_CHAIN_RPC_URL="$C_CHAIN_RPC" \
+        C_CHAIN_BLOCKCHAIN_ID="$C_CHAIN_BLOCKCHAIN_ID" \
+        L1_RPC_URL="$LOCAL_RPC" \
+        forge script "script/DeployICTT.s.sol:DeployICTT" \
+          --root "$REPO_ROOT/contracts" \
+          --multi \
+          --broadcast \
+          2>&1)
+      echo "$ICTT_OUT"
+      ICTT_HOME_ADDR=$(echo "$ICTT_OUT" | grep -oP 'ICTT_TOKEN_HOME:\s+\K(0x[a-fA-F0-9]{40})' | head -1)
+      ICTT_REMOTE_ADDR=$(echo "$ICTT_OUT" | grep -oP 'ICTT_TOKEN_REMOTE:\s+\K(0x[a-fA-F0-9]{40})' | head -1)
+      ICTT_CREG_ADDR=$(echo "$ICTT_OUT" | grep -oP 'C-chain TeleporterRegistry:\s+\K(0x[a-fA-F0-9]{40})' | head -1)
+      ICTT_L1REG_ADDR=$(echo "$ICTT_OUT" | grep -oP 'L1 TeleporterRegistry:\s+\K(0x[a-fA-F0-9]{40})' | head -1)
+      ICTT_SRC_ADDR=$(echo "$ICTT_OUT" | grep -oP 'ICTT_SOURCE_TOKEN:\s+\K(0x[a-fA-F0-9]{40})' | head -1)
+
+      # Update network.json with ICTT addresses
+      NOW2=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+      UPDATED=$(jq --arg ih "${ICTT_HOME_ADDR:-}" --arg it "${ICTT_REMOTE_ADDR:-}" \
+                    --arg ic "${ICTT_CREG_ADDR:-}" --arg il "${ICTT_L1REG_ADDR:-}" \
+                    --arg is "${ICTT_SRC_ADDR:-}" --arg ts "$NOW2" '
+        .contracts += (
+          (if $ih != "" then [{"name":"ICTTTokenHome","address":$ih,"deployedAt":$ts}] else [] end) +
+          (if $it != "" then [{"name":"ICTTTokenRemote","address":$it,"deployedAt":$ts}] else [] end) +
+          (if $ic != "" then [{"name":"CChainTeleporterRegistry","address":$ic,"deployedAt":$ts}] else [] end) +
+          (if $il != "" then [{"name":"L1TeleporterRegistry","address":$il,"deployedAt":$ts}] else [] end) +
+          (if $is != "" then [{"name":"ICTTSourceToken","address":$is,"deployedAt":$ts}] else [] end)
+        )' "$NETWORK_JSON")
+      echo "$UPDATED" > "$NETWORK_JSON"
+    fi
+  fi
+fi
+
 # ── 5. Start Blockscout ──────────────────────────────────────────────────────
 
 if [ "$NO_EXPLORER" = false ]; then
@@ -367,6 +454,19 @@ if [ -f "$NETWORK_JSON" ]; then
   [ -n "$COMPLIANCE_ADDR" ] && echo "  ComplianceRegistry:  $COMPLIANCE_ADDR"
   [ -n "$DIVIDEND_ADDR" ]   && echo "  DividendDistributor: $DIVIDEND_ADDR"
   [ -n "$TOKEN_ADDR" ]      && echo "  ERC-3643 Token:      $TOKEN_ADDR"
+fi
+
+if [ "$ICTT_MODE" = true ] && [ -f "$NETWORK_JSON" ]; then
+  ICTT_HOME=$(jq -r '.contracts[] | select(.name == "ICTTTokenHome") | .address' "$NETWORK_JSON" 2>/dev/null || echo "")
+  ICTT_REMOTE=$(jq -r '.contracts[] | select(.name == "ICTTTokenRemote") | .address' "$NETWORK_JSON" 2>/dev/null || echo "")
+  ICTT_SRC=$(jq -r '.contracts[] | select(.name == "ICTTSourceToken") | .address' "$NETWORK_JSON" 2>/dev/null || echo "")
+  ICTT_CREG=$(jq -r '.contracts[] | select(.name == "CChainTeleporterRegistry") | .address' "$NETWORK_JSON" 2>/dev/null || echo "")
+  ICTT_L1REG=$(jq -r '.contracts[] | select(.name == "L1TeleporterRegistry") | .address' "$NETWORK_JSON" 2>/dev/null || echo "")
+  [ -n "$ICTT_SRC" ]   && echo "  ICTT source token:   $ICTT_SRC (C-chain)"
+  [ -n "$ICTT_HOME" ]   && echo "  ICTT TokenHome:      $ICTT_HOME (C-chain)"
+  [ -n "$ICTT_REMOTE" ] && echo "  ICTT TokenRemote:    $ICTT_REMOTE (L1)"
+  [ -n "$ICTT_CREG" ]   && echo "  C-chain Teleporter:  $ICTT_CREG"
+  [ -n "$ICTT_L1REG" ]   && echo "  L1 Teleporter:        $ICTT_L1REG"
 fi
 
 if [ "$NO_EXPLORER" = false ]; then

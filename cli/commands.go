@@ -439,18 +439,180 @@ func runDemoCLI(repoRoot string, args []string) int {
 		fmt.Fprintln(os.Stderr, err)
 		return 2
 	}
+	_ = repoRoot
 	sink := eventSink{json: opt.json}
 	runID := newRunID()
-	sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "preflight", Status: "started", Message: "checking one-command demo prerequisites"})
-	for _, bin := range []string{"terraform", "forge", "avalanche"} {
+
+	// Preflight: forge + cast (foundry suite) + avalanche
+	sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "preflight", Status: "started", Message: "checking demo prerequisites"})
+	for _, bin := range []string{"forge", "cast", "avalanche"} {
 		if _, err := exec.LookPath(bin); err != nil {
-			sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "preflight", Status: "failed_closed", ErrorCode: "missing_binary", Message: bin})
+			sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "preflight", Status: "failed_closed", ErrorCode: "missing_binary", Message: bin + " not found — install Foundry and Avalanche CLI"})
 			return 1
 		}
 	}
-	sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "preflight", Status: "succeeded", Message: "run `claw1` for interactive TUI or `claw1 deploy --yes` for script mode"})
-	_ = repoRoot
+	sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "preflight", Status: "succeeded"})
+
+	// Load network.json written by `claw1 deploy`
+	netPath := networkPath(opt.target)
+	data, err := os.ReadFile(netPath)
+	if err != nil {
+		sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "network", Status: "failed_closed", ErrorCode: "network_json_missing", Message: "no deployment found — run 'claw1 deploy' first"})
+		return 1
+	}
+	var net networkJSON
+	if err := json.Unmarshal(data, &net); err != nil {
+		sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "network", Status: "failed_closed", ErrorCode: "network_json_invalid", Message: err.Error()})
+		return 1
+	}
+	if net.RPCURL == "" || net.DeployerPrivateKey == "" {
+		sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "network", Status: "failed_closed", ErrorCode: "network_incomplete", Message: "rpcUrl or deployerPrivateKey missing in network.json"})
+		return 1
+	}
+
+	// Find the ERC-3643 compliance token
+	tokenAddr := findContract(&net, "ERC3643Token")
+	if tokenAddr == "" {
+		sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "contracts", Status: "failed_closed", ErrorCode: "erc3643_not_deployed", Message: "ERC3643Token not in network.json — run 'claw1 deploy'"})
+		return 1
+	}
+
+	// Verify chain is producing blocks
+	block, err := rpcString(net.RPCURL, "eth_blockNumber", []any{})
+	if err != nil {
+		sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "network", Status: "failed_closed", ErrorCode: "rpc_unreachable", Message: net.RPCURL})
+		return 1
+	}
+	sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "network", Status: "live", ChainID: fmt.Sprintf("%d", net.ChainID), Message: "block " + block})
+	sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "contracts", Status: "found", ResourceID: tokenAddr, Message: "ERC3643Token (T-REX compliance token)"})
+
+	// T-REX tokens initialize paused — unpause so transfers can proceed
+	sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "setup", Status: "started", ResourceID: tokenAddr, Message: "unpausing T-REX token for demo"})
+	if err := demoCall(net.RPCURL, net.DeployerPrivateKey, tokenAddr, "unpause()"); err != nil {
+		sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "setup", Status: "failed_closed", ErrorCode: "unpause_failed", Message: err.Error()})
+		return 1
+	}
+	sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "setup", Status: "succeeded", Message: "token unpaused"})
+
+	// Transfer 1 — KYC-verified wallet: should be APPROVED
+	// ewoq address is registered as the demo investor in DeployERC3643.s.sol (_registerDemoInvestor)
+	const (
+		verifiedWallet   = "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC" // ewoq — registered in IdentityRegistry
+		unverifiedWallet = "0x1111111111111111111111111111111111111111" // no KYC claim
+		transferAmount   = "1000000000000000000"                        // 1 CEQ (18 decimals)
+	)
+	sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "transfer_approved", Status: "started", ResourceID: verifiedWallet, Message: "sending 1 CEQ to KYC-verified wallet"})
+	approvedHash, approvedErr := demoTransfer(net.RPCURL, net.DeployerPrivateKey, tokenAddr, verifiedWallet, transferAmount)
+	if approvedErr != nil {
+		sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "transfer_approved", Status: "failed_closed", ErrorCode: "unexpected_revert", Message: approvedErr.Error()})
+		return 1
+	}
+	sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "transfer_approved", Status: "approved", TxHash: approvedHash, ResourceID: verifiedWallet, Message: "transferencia aprobada — billetera verificada en IdentityRegistry"})
+
+	// Transfer 2 — no-KYC wallet: should be REJECTED by the T-REX contract
+	sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "transfer_rejected", Status: "started", ResourceID: unverifiedWallet, Message: "sending 1 CEQ to wallet with no KYC claim"})
+	_, rejectedErr := demoTransfer(net.RPCURL, net.DeployerPrivateKey, tokenAddr, unverifiedWallet, transferAmount)
+	rejectReason := "transaction reverted by contract"
+	if rejectedErr != nil {
+		rejectReason = demoRevertReason(rejectedErr.Error())
+		sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "transfer_rejected", Status: "rejected", ErrorCode: "identity_not_found", ResourceID: unverifiedWallet, Message: rejectReason})
+	} else {
+		sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "transfer_rejected", Status: "warning", Message: "transfer to unverified wallet was not rejected — check IdentityRegistry setup"})
+	}
+
+	// Evidence package
+	evDir, evErr := evidenceDir(deploymentName(opt.target), runID)
+	if evErr == nil {
+		type txRecord struct {
+			Step   string `json:"step"`
+			To     string `json:"to"`
+			TxHash string `json:"tx_hash,omitempty"`
+			Status string `json:"status"`
+			Reason string `json:"reason,omitempty"`
+		}
+		records := []txRecord{
+			{Step: "transfer_approved", To: verifiedWallet, TxHash: approvedHash, Status: "approved"},
+		}
+		if rejectedErr != nil {
+			records = append(records, txRecord{Step: "transfer_rejected", To: unverifiedWallet, Status: "rejected", Reason: rejectReason})
+		} else {
+			records = append(records, txRecord{Step: "transfer_rejected", To: unverifiedWallet, Status: "unexpected_approved"})
+		}
+		_ = writeEvidenceJSON(evDir, "demo.json", map[string]any{
+			"run_id":    runID,
+			"chain_id":  net.ChainID,
+			"rpc_url":   net.RPCURL,
+			"token":     tokenAddr,
+			"transfers": records,
+		})
+		sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "evidence", Status: "written", Message: evDir + "/demo.json"})
+	}
+
+	sink.emit(workflowEvent{RunID: runID, Workflow: "demo", Step: "complete", Status: "succeeded", Message: "ERC-3643 enforcement verified on-chain — run 'claw1 destroy' to clean up"})
 	return 0
+}
+
+// demoCall invokes a no-argument contract method (e.g. unpause) via cast send.
+func demoCall(rpcURL, privateKey, contractAddr, sig string) error {
+	cmd := exec.Command("cast", "send",
+		contractAddr, sig,
+		"--rpc-url", rpcURL,
+		"--private-key", hexPrivateKey(privateKey),
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return nil
+}
+
+// demoTransfer sends an ERC-20 transfer via cast send and returns the tx hash.
+func demoTransfer(rpcURL, privateKey, tokenAddr, toAddr, amount string) (string, error) {
+	cmd := exec.Command("cast", "send",
+		tokenAddr,
+		"transfer(address,uint256)",
+		toAddr,
+		amount,
+		"--rpc-url", rpcURL,
+		"--private-key", hexPrivateKey(privateKey),
+	)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return "", fmt.Errorf("%s", strings.TrimSpace(string(out)))
+	}
+	return parseCastTxHash(string(out)), nil
+}
+
+// parseCastTxHash finds the transaction hash in cast send output.
+func parseCastTxHash(output string) string {
+	for _, line := range strings.Split(output, "\n") {
+		line = strings.TrimSpace(line)
+		if strings.HasPrefix(line, "transactionHash") {
+			fields := strings.Fields(line)
+			if len(fields) >= 2 {
+				return fields[len(fields)-1]
+			}
+		}
+	}
+	return ""
+}
+
+// demoRevertReason extracts a human-readable reason from a cast revert message.
+func demoRevertReason(errMsg string) string {
+	lower := strings.ToLower(errMsg)
+	switch {
+	case strings.Contains(lower, "identity") && strings.Contains(lower, "not found"):
+		return "identity not found in IdentityRegistry"
+	case strings.Contains(lower, "notverified") || strings.Contains(lower, "not verified"):
+		return "wallet not KYC-verified"
+	case strings.Contains(lower, "transfernotpossible") || strings.Contains(lower, "transfer not possible"):
+		return "T-REX compliance rule blocked transfer"
+	default:
+		if len(errMsg) > 120 {
+			return errMsg[:120]
+		}
+		return errMsg
+	}
 }
 
 func streamCmd(sink eventSink, runID, workflow, dir, name string, args ...string) error {

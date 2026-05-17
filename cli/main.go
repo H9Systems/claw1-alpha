@@ -43,7 +43,7 @@ func initialModel(repoRoot string) model {
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return tea.Batch(wizardTickCmd(), fetchNetworkCmd(m.wizard.target))
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {

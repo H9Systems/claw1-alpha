@@ -48,16 +48,17 @@ type explorerDoneMsg string
 // ── Model ─────────────────────────────────────────────────────────────────────
 
 type receiptModel struct {
-	net      *networkJSON
-	block    int64
-	blockErr string
-	copyMsg  string
-	target   deployTarget
-	repoRoot string
-	width    int
-	tab      int
-	wallet   int
-	action   string
+	net          *networkJSON
+	block        int64
+	blockErr     string
+	copyMsg      string
+	target       deployTarget
+	repoRoot     string
+	width        int
+	tab          int
+	wallet       int
+	action       string
+	explorerSnap explorerSnapshot
 }
 
 const (
@@ -169,14 +170,16 @@ func (m receiptModel) Update(msg tea.Msg) (receiptModel, tea.Cmd) {
 	case networkLoadedMsg:
 		if msg.net != nil {
 			m.net = msg.net
-			return m, pollBlockHeight(m.net.RPCURL)
+			return m, tea.Batch(pollBlockHeight(m.net.RPCURL), fetchReceiptExplorerCmd(m.target))
 		}
 	case tickMsg:
 		cmds := []tea.Cmd{tickEvery3s(), loadNetwork(m.target, m.repoRoot)}
 		if m.net != nil {
-			cmds = append(cmds, pollBlockHeight(m.net.RPCURL))
+			cmds = append(cmds, pollBlockHeight(m.net.RPCURL), fetchReceiptExplorerCmd(m.target))
 		}
 		return m, tea.Batch(cmds...)
+	case receiptExplorerMsg:
+		m.explorerSnap = msg.snap
 	case blockHeightMsg:
 		if int64(msg) > 0 {
 			m.block = int64(msg)
@@ -354,10 +357,14 @@ func (m receiptModel) overviewView(width int) string {
 
 func (m receiptModel) explorerView() string {
 	var b strings.Builder
-	x := loadExplorerSnapshot(m.target, 6)
+	x := m.explorerSnap
 	b.WriteString(styleSectionTitle.Render("EMBEDDED EXPLORER") + "\n")
 	if x.Err != "" {
 		b.WriteString("  " + dot(red) + "  " + styleRed.Render(x.Err) + "\n")
+		return b.String()
+	}
+	if x.BlockHeight == "" {
+		b.WriteString(styleDim.Render("  Loading explorer data...") + "\n")
 		return b.String()
 	}
 	b.WriteString(row("LATEST BLOCK", x.BlockHeight, "SOURCE", "direct RPC"))
