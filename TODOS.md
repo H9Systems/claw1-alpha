@@ -70,6 +70,26 @@
 
 - [ ] **Demo script: add `recordAllowlistChange()` step** — when adding a shareholder to TxAllowList via precompile, also call `cast send $REGISTRY recordAllowlistChange(address,uint8)` to log it on the evidence layer.
 
+## P1 — Footgun fixes (cross-mode and OCI)
+
+- [ ] **Don't clobber `~/.oci/config`** — `writeOCIConfig()` opens with `O_TRUNC`, destroying any existing multi-profile OCI config. Fix: read existing config, merge/update the `[DEFAULT]` section, write back. Warn user before overwriting. *(OCI only)*
+
+- [ ] **Don't `pkill -f 'ssh.*54320'`** — regex-based process kill can hit unrelated SSH sessions. Fix: track the tunnel process PID and kill only that process on cleanup. *(OCI only)*
+
+- [ ] **Remove `StrictHostKeyChecking=no`** — both the SSH tunnel and bootstrap SCP disable host key verification. Fix: accept the host key on first connection and persist it to `known_hosts`, or at minimum warn the user. *(OCI only)*
+
+- [ ] **Fix `ociDefaultAD()` availability domain names** — the `aBCD:` prefix is tenancy-specific, not universal. Hardcoded guesses will cause `terraform apply` failures. Fix: query the OCI API/CLI for the real AD names, or make the wizard clearly label the field as mandatory and validate it. *(OCI only)*
+
+- [ ] **Don't default compartment_id to tenancy OCID** — `writeTFVars()` uses `{{.Tenancy}}` as `compartment_id`, which targets the root compartment. Dangerous if the tenancy has other resources. Fix: add a separate compartment field to the wizard, default to empty, and validate that it starts with `ocid1.compartment`. *(OCI only)*
+
+- [ ] **Don't hardcode tunnel port 54320** — if another service occupies that port locally, the tunnel silently fails. Fix: pick a dynamic port or let the user configure it. *(OCI only)*
+
+- [ ] **Stop leaking private keys via env vars** — both `deployOCIContracts()` and `deployERC3643Local()` pass deployer keys as `FOUNDRY_ETH_PRIVATE_KEY` / `DEPLOYER_PRIVATE_KEY` env vars, which are visible in `/proc/<pid>/environ`. Fix: write keys to temp files with `0600` perms and pass them via `--private-key-file` flags where forge supports it, or use foundry's `-- ACCOUNT` approach. *(both modes)*
+
+- [ ] **Add terraform state locking** — concurrent `deploy` or `destroy` from two terminals corrupts state. Fix: use a local `.tflock` file or add a mutex check before running terraform operations. *(both modes)*
+
+- [ ] **Validate `warpConfig.quorumNumerator`** — `bootstrap.sh` sets `quorumNumerator: 0` which may mean "no quorum required" (accepts all warp messages) or "nothing passes" depending on Avalanche version. Fix: set it to `67` (≈2/3) or document the tradeoff. *(OCI only)*
+
 ## P3 — Post-launch roadmap
 
 - [ ] **Replace `avalanche-cli` wrapping with P-Chain SDK** — `l1_resource.go` currently shells out to `avalanche blockchain create/deploy`. Post-launch: use Go P-Chain SDK directly for proper Terraform resource lifecycle. Effort: ~3-4 days human / ~2h CC.
