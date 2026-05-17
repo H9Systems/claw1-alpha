@@ -26,14 +26,14 @@ Claw1 es ese stack, con modelo ==open core==.
 
 Una fintech quiere emitir tokens de deuda para inversores verificados.
 
-- ==Hyperledger / Corda==: KYC posible, pero tokens atrapados dentro de la red privada. Sin liquidez. Sin mercado secundario.
-- ==Cadena pública==: liquidez total, pero FATF lo prohíbe — cualquier wallet puede recibir los tokens.
+- ==Hyperledger / Corda==: KYC posible, pero tokens atrapados. Sin liquidez. Sin mercado secundario.
+- ==Cadena pública==: liquidez total, pero GAFI lo prohíbe — cualquier wallet puede recibir los tokens.
 
-Con una L1 de Avalanche: solo wallets verificadas participan, y vía ==ICTT== los tokens alcanzan el C-chain público.
+Con una L1 de Avalanche: GAFI cumplido por protocolo, y vía ==ICTT== los tokens alcanzan el C-chain público.
 
 Cumplimiento nativo y liquidez DeFi. En el mismo stack.
 
-## Claw1
+## Un comando. Todo el stack.
 
 `claw1 deploy`
 
@@ -42,7 +42,7 @@ Cumplimiento nativo y liquidez DeFi. En el mismo stack.
 - Atestiguación on-chain del deployment
 - Evidencia local del run
 
-## La demo
+## El producto hoy
 
 `claw1 demo`
 
@@ -62,17 +62,17 @@ Como el ==OpenZeppelin wizard== para contratos, pero para infraestructura.
 - KYC y restricciones de transferencia habilitados desde génesis
 - Orientado a GAFI / AML desde el primer bloque
 
-## Oracle Cloud
+## Hecho para DevOps
 
-Solo Terraform provider para ==Avalanche + OCI==.
+Los ingenieros de infraestructura viven en la terminal. Infra-as-code es el estándar — Oracle, AWS y GCP lo adoptan por defecto.
 
-[avalanche-deploy](https://github.com/ava-labs/avalanche-deploy) no tiene provider para Oracle.
+Un SSH y tienes todo: avalanche-cli, forge, terraform. Listo para desarrollar tu L1.
 
 `terraform apply`
 
-Mismo HCL en local y en producción.
+Solo Terraform provider para ==Avalanche + OCI==. [avalanche-deploy](https://github.com/ava-labs/avalanche-deploy) no tiene provider para Oracle.
 
-## Modelo
+## Open Core
 
 Dev appliance libre para adopción.
 
@@ -82,11 +82,11 @@ El patrón ==Red Hat== para infraestructura financiera regulada.
 
 ## Mercado
 
-TAM: ==USD 31.28B== en 2024, proyectado ==USD 1.43T== en 2030.
+==TAM==: USD 31.28B en 2024, proyectado USD 1.43T en 2030.
 
-SAM: ==USD 4.8B== en 2024, proyectado ==USD 38.5B== en 2033.
+==SAM==: USD 4.8B en 2024, proyectado USD 38.5B en 2033.
 
-SOM: por definir.
+==SOM==: por definir.
 
 Wedge: developer appliance para equipos regulados en Latam.
 
