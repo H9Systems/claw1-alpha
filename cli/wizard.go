@@ -1,8 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"math/big"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 
@@ -36,25 +39,32 @@ type wizardModel struct {
 	target       deployTarget
 	activeTab    int
 	deployCursor int
+	itemCursor   int
 	focus        int
 	inputs       []textinput.Model
 	err          string
+	action       string
 	repoRoot     string
 	enableICTT   bool
 }
 
 const (
-	tabDeploy = iota
-	tabCompliance
-	tabOperations
+	tabNetworks = iota
+	tabExplorer
+	tabContracts
+	tabWallets
+	tabSimulate
+	tabMonitoring
 	tabOCI
 	numTabs
 )
 
 const (
-	deployCursorOCI = iota
-	deployCursorLocal
+	deployCursorLocal = iota
+	deployCursorOCI
+	deployCursorICTT
 	deployCursorStart
+	deployCursorDashboard
 	numDeployCursors
 )
 
@@ -108,27 +118,96 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 		switch msg.String() {
 		case "tab", "right":
 			m.activeTab = (m.activeTab + 1) % numTabs
+			m.itemCursor = 0
 			m.syncFocus()
 		case "shift+tab", "left":
 			m.activeTab = (m.activeTab - 1 + numTabs) % numTabs
+			m.itemCursor = 0
 			m.syncFocus()
 		case "down":
 			switch {
-			case m.activeTab == tabDeploy:
+			case m.activeTab == tabNetworks:
 				m.deployCursor = (m.deployCursor + 1) % numDeployCursors
+			case m.activeTab == tabContracts:
+				m.itemCursor = clampCursor(m.itemCursor+1, len(loadNetworkSnapshot(m.target).contracts))
+			case m.activeTab == tabWallets:
+				m.itemCursor = clampCursor(m.itemCursor+1, len(demoWallets()))
 			case m.activeTab == tabOCI && m.target == targetOCI:
 				m.focus = (m.focus + 1) % numInputs
 			}
 			m.syncFocus()
 		case "up":
 			switch {
-			case m.activeTab == tabDeploy:
+			case m.activeTab == tabNetworks:
 				m.deployCursor = (m.deployCursor - 1 + numDeployCursors) % numDeployCursors
+			case m.activeTab == tabContracts:
+				m.itemCursor = clampCursor(m.itemCursor-1, len(loadNetworkSnapshot(m.target).contracts))
+			case m.activeTab == tabWallets:
+				m.itemCursor = clampCursor(m.itemCursor-1, len(demoWallets()))
 			case m.activeTab == tabOCI && m.target == targetOCI:
 				m.focus = (m.focus - 1 + numInputs) % numInputs
 			}
 			m.syncFocus()
+		case "enter":
+			switch m.activeTab {
+			case tabNetworks:
+				if m.deployCursor == deployCursorDashboard {
+					m.action = "Dashboard opens after deployment. Run `claw1 receipt` to open it directly."
+				}
+			case tabExplorer:
+				return m, startExplorer(m.repoRoot)
+			case tabContracts:
+				snap := loadNetworkSnapshot(m.target)
+				if len(snap.contracts) > 0 {
+					return m, copyToClipboard(snap.contracts[m.itemCursor].Address)
+				}
+			case tabWallets:
+				wallets := demoWallets()
+				if len(wallets) > 0 {
+					return m, copyToClipboard(wallets[m.itemCursor].Address)
+				}
+			case tabSimulate:
+				m.action = simulateKYCRead(m.target)
+			}
+		case "s", "S":
+			if m.activeTab == tabExplorer {
+				return m, startExplorer(m.repoRoot)
+			}
+		case "o", "O":
+			if m.activeTab == tabExplorer {
+				return m, openExplorer()
+			}
+		case "a", "A":
+			if m.activeTab == tabContracts {
+				snap := loadNetworkSnapshot(m.target)
+				if len(snap.contracts) > 0 {
+					return m, copyToClipboard(snap.contracts[m.itemCursor].Address)
+				}
+			}
+			if m.activeTab == tabWallets {
+				wallets := demoWallets()
+				return m, copyToClipboard(wallets[m.itemCursor].Address)
+			}
+		case "k", "K":
+			if m.activeTab == tabWallets && m.itemCursor == 0 {
+				snap := loadNetworkSnapshot(m.target)
+				if snap.net != nil {
+					return m, copyToClipboard(hexPrivateKey(snap.net.DeployerPrivateKey))
+				}
+			}
+		case "i", "I":
+			if m.activeTab == tabNetworks {
+				m.enableICTT = !m.enableICTT
+			}
+		case "r", "R":
+			if m.activeTab == tabSimulate {
+				m.action = simulateKYCRead(m.target)
+			}
 		}
+	case copyDoneMsg:
+		m.action = string(msg)
+	case explorerDoneMsg:
+		m.action = string(msg)
 	}
 
 	if m.activeTab == tabOCI && m.target == targetOCI {
@@ -194,7 +273,7 @@ func (m wizardModel) validate() (deployConfig, error) {
 }
 
 func (m *wizardModel) activate() bool {
-	if m.activeTab != tabDeploy {
+	if m.activeTab != tabNetworks {
 		return false
 	}
 	switch m.deployCursor {
@@ -204,10 +283,16 @@ func (m *wizardModel) activate() bool {
 	case deployCursorLocal:
 		m.target = targetLocal
 		m.syncFocus()
+	case deployCursorICTT:
+		m.enableICTT = !m.enableICTT
 	case deployCursorStart:
 		return true
 	}
 	return false
+}
+
+func (m wizardModel) openDashboard() bool {
+	return m.activeTab == tabNetworks && m.deployCursor == deployCursorDashboard
 }
 
 func (m wizardModel) View(width int) string {
@@ -225,12 +310,18 @@ func (m wizardModel) View(width int) string {
 	b.WriteString(m.tabs() + "\n\n")
 
 	switch m.activeTab {
-	case tabDeploy:
-		b.WriteString(m.deployTab(contentWidth))
-	case tabCompliance:
-		b.WriteString(m.complianceTab(contentWidth))
-	case tabOperations:
-		b.WriteString(m.operationsTab())
+	case tabNetworks:
+		b.WriteString(m.networksTab(contentWidth))
+	case tabExplorer:
+		b.WriteString(m.explorerTab(contentWidth))
+	case tabContracts:
+		b.WriteString(m.contractsTab(contentWidth))
+	case tabWallets:
+		b.WriteString(m.walletsTab(contentWidth))
+	case tabSimulate:
+		b.WriteString(m.simulateTab(contentWidth))
+	case tabMonitoring:
+		b.WriteString(m.monitoringTab(contentWidth))
 	case tabOCI:
 		b.WriteString(m.ociTab(contentWidth))
 	}
@@ -238,15 +329,18 @@ func (m wizardModel) View(width int) string {
 	if m.err != "" {
 		b.WriteString("\n" + styleRed.Render("  ✗ "+m.err) + "\n")
 	}
+	if m.action != "" {
+		b.WriteString("\n" + styleYellow.Render("  "+m.action) + "\n")
+	}
 
-	b.WriteString(styleKeys.Render("\n  [←/→] tabs   [↑/↓] select   [Enter] activate   [Q] quit"))
+	b.WriteString(styleKeys.Render("\n  [←/→] tabs   [↑/↓] select   [Enter] activate   [A] copy address   [Q] quit"))
 
 	inner := b.String()
 	return styleBox.Width(width - 4).Render(inner)
 }
 
 func (m wizardModel) tabs() string {
-	names := []string{"Mission", "Compliance", "Operations", "OCI"}
+	names := []string{"Networks", "Explorer", "Contracts", "Wallets", "Simulate", "Monitoring", "OCI"}
 	var parts []string
 	for i, name := range names {
 		if i == m.activeTab {
@@ -258,51 +352,142 @@ func (m wizardModel) tabs() string {
 	return strings.Join(parts, "")
 }
 
-func (m wizardModel) deployTab(contentWidth int) string {
+func (m wizardModel) networksTab(contentWidth int) string {
 	var b strings.Builder
-	b.WriteString(styleSectionTitle.Render("MISSION") + "\n")
-	b.WriteString(featureRow("Use case", "issue regulated debt tokens to verified wallets", contentWidth))
-	b.WriteString(featureRow("Why L1", "compliance boundary stays native, liquidity can still route outward", contentWidth))
-	b.WriteString(featureRow("Demo proof", "verified transfer passes; unknown wallet is rejected", contentWidth))
-	b.WriteString("\n" + styleSectionTitle.Render("DEPLOYMENT RAIL") + "\n")
-	b.WriteString(m.optionRow(deployCursorLocal, m.target == targetLocal, "Developer appliance", "local L1, fast repeatable demo") + "\n")
-	b.WriteString(m.optionRow(deployCursorOCI, m.target == targetOCI, "Production target", "OCI VM, same Terraform spine") + "\n\n")
+	snap := loadNetworkSnapshot(m.target)
+	b.WriteString(styleSectionTitle.Render("NETWORKS") + "\n")
+	b.WriteString(m.optionRow(deployCursorLocal, m.target == targetLocal, "Developer appliance", "local private L1") + "\n")
+	b.WriteString(m.optionRow(deployCursorOCI, m.target == targetOCI, "Production target", "OCI private L1") + "\n")
+	b.WriteString(m.optionRow(deployCursorICTT, m.enableICTT, "ICTT liquidity path", "optional C-chain bridge workbench") + "\n")
+	b.WriteString(m.optionRow(deployCursorStart, false, "Deploy / reconcile", "apply Terraform + contracts") + "\n")
+	b.WriteString(m.optionRow(deployCursorDashboard, false, "Open dashboard", "post-deploy operations view") + "\n\n")
 
 	if m.target == targetOCI {
 		b.WriteString(featureRow("Selected", "OCI VM + Avalanche L1 + T-REX compliance suite", contentWidth))
 		b.WriteString(featureRow("Before deploy", "complete the OCI tab; secrets stay local", contentWidth))
 	} else {
 		b.WriteString(featureRow("Selected", "Avalanche devnet + custom L1 + T-REX", contentWidth))
-		b.WriteString(featureRow("Upgrade path", "OCI adds multi-node infra, hardened keys, RBAC", contentWidth))
+		b.WriteString(featureRow("Network file", networkPath(targetLocal), contentWidth))
 	}
-
 	b.WriteString("\n")
-	b.WriteString(styleSectionTitle.Render("RUNBOOK") + "\n")
-	b.WriteString(featureRow("1. Provision", "Terraform declares and applies the L1", contentWidth))
-	b.WriteString(featureRow("2. Compliance", "ERC-3643, IdentityRegistry, KYC issuer", contentWidth))
-	b.WriteString(featureRow("3. Observe", "RPC, contracts, explorer, wallet surface", contentWidth))
-	b.WriteString(featureRow("4. Preserve", "local evidence bundle and deploy receipt", contentWidth))
-	b.WriteString("\n")
-	b.WriteString(m.primaryAction())
+	b.WriteString(styleSectionTitle.Render("CURRENT ENVIRONMENT") + "\n")
+	if snap.net == nil {
+		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render("No deployed network found. Select Deploy / reconcile and press Enter.") + "\n")
+	} else {
+		b.WriteString(featureRow("Name", snap.net.Name, contentWidth))
+		b.WriteString(featureRow("Chain ID", fmt.Sprintf("%d", snap.net.ChainID), contentWidth))
+		b.WriteString(featureRow("RPC", snap.net.RPCURL, contentWidth))
+		b.WriteString(featureRow("Contracts", fmt.Sprintf("%d tracked", len(snap.net.Contracts)), contentWidth))
+	}
 	return b.String()
 }
 
-func (m wizardModel) complianceTab(contentWidth int) string {
+func (m wizardModel) explorerTab(contentWidth int) string {
 	var b strings.Builder
-	b.WriteString(styleSectionTitle.Render("FINANCIAL RAIL") + "\n")
-	b.WriteString(featureRow("Status quo", "Hyperledger/Corda can gate wallets, but assets stay trapped", contentWidth))
-	b.WriteString(featureRow("Public chain", "liquidity exists, but unrestricted receivers break AML controls", contentWidth))
-	b.WriteString(featureRow("Claw1 L1", "verified wallets only, with a path to public liquidity via ICTT", contentWidth))
+	status := styleRed.Render("offline")
+	if explorerHealthy() {
+		status = styleGreen.Render("online")
+	}
+	b.WriteString(styleSectionTitle.Render("EXPLORER") + "\n")
+	b.WriteString(featureRow("Blockscout UI", "http://localhost:3001", contentWidth))
+	b.WriteString(featureRow("Backend API", "http://localhost:4000", contentWidth))
+	b.WriteString(featureRow("Status", status, contentWidth))
 	b.WriteString("\n")
-	b.WriteString(styleSectionTitle.Render("DEFAULT TEMPLATE") + "\n")
-	b.WriteString(featureRow("ERC-3643 / T-REX", "identity-bound token with transfer restrictions", contentWidth))
-	b.WriteString(featureRow("IdentityRegistry", "only verified wallets can receive the asset", contentWidth))
-	b.WriteString(featureRow("ClaimIssuer", "demo KYC authority signs investor claims", contentWidth))
-	b.WriteString(featureRow("ComplianceRegistry", "jurisdiction and KYC evidence on-chain", contentWidth))
+	b.WriteString(styleSectionTitle.Render("ACTIONS") + "\n")
+	b.WriteString(actionRow(true, "Start explorer", "Enter or S", "docker compose up Blockscout") + "\n")
+	b.WriteString(actionRow(false, "Open explorer", "O", "launch http://localhost:3001") + "\n")
+	b.WriteString(actionRow(false, "Address deep links", "Contracts tab", "copy contract address for lookup") + "\n")
+	return b.String()
+}
+
+func (m wizardModel) contractsTab(contentWidth int) string {
+	var b strings.Builder
+	snap := loadNetworkSnapshot(m.target)
+	b.WriteString(styleSectionTitle.Render("CONTRACTS") + "\n")
+	if snap.net == nil {
+		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render("Deploy a network first. Contracts are loaded from network.json.") + "\n")
+		return b.String()
+	}
+	for i, c := range snap.contracts {
+		prefix := "  "
+		name := styleValue.Render(fmt.Sprintf("%-28s", c.Name))
+		if i == m.itemCursor {
+			prefix = styleGreen.Render("› ")
+			name = styleButtonActive.Render(fmt.Sprintf("%-28s", c.Name))
+		}
+		b.WriteString(prefix + name + styleGreen.Render(c.Address) + "\n")
+	}
 	b.WriteString("\n")
-	b.WriteString(styleSectionTitle.Render("DEMO ASSERTION") + "\n")
-	b.WriteString(featureRow("Verified wallet", "transfer approved", contentWidth))
-	b.WriteString(featureRow("Unknown wallet", "transfer rejected by contract", contentWidth))
+	b.WriteString(styleSectionTitle.Render("ACTIONS") + "\n")
+	b.WriteString(featureRow("Enter / A", "copy selected contract address", contentWidth))
+	b.WriteString(featureRow("Inspect", "claw1 inspect --local --json", contentWidth))
+	return b.String()
+}
+
+func (m wizardModel) walletsTab(contentWidth int) string {
+	var b strings.Builder
+	snap := loadNetworkSnapshot(m.target)
+	b.WriteString(styleSectionTitle.Render("WALLETS") + "\n")
+	for i, w := range demoWallets() {
+		prefix := "  "
+		name := styleValue.Render(fmt.Sprintf("%-12s", w.Name))
+		if i == m.itemCursor {
+			prefix = styleGreen.Render("› ")
+			name = styleButtonActive.Render(fmt.Sprintf("%-12s", w.Name))
+		}
+		bal, nonce := "n/a", "n/a"
+		if snap.net != nil {
+			bal = walletBalance(snap.net.RPCURL, w.Address)
+			nonce = walletNonce(snap.net.RPCURL, w.Address)
+		}
+		b.WriteString(prefix + name + styleGreen.Render(w.Address) + styleDim.Render("  balance "+bal+"  nonce "+nonce) + "\n")
+	}
+	b.WriteString("\n" + styleSectionTitle.Render("ACTIONS") + "\n")
+	b.WriteString(featureRow("Enter / A", "copy selected address", contentWidth))
+	b.WriteString(featureRow("K", "copy deployer private key for local demo wallet", contentWidth))
+	return b.String()
+}
+
+func (m wizardModel) simulateTab(contentWidth int) string {
+	var b strings.Builder
+	snap := loadNetworkSnapshot(m.target)
+	b.WriteString(styleSectionTitle.Render("SIMULATE") + "\n")
+	b.WriteString(featureRow("Tenderly idea", "preview contract behavior before users hit it", contentWidth))
+	b.WriteString(featureRow("Claw1 check", "IdentityRegistry.isVerified(demo investor)", contentWidth))
+	if snap.net == nil {
+		b.WriteString("\n  " + dot(yellow) + "  " + styleYellow.Render("Deploy a network first.") + "\n")
+		return b.String()
+	}
+	b.WriteString(featureRow("IdentityRegistry", findContract(snap.net, "IdentityRegistry"), contentWidth))
+	b.WriteString("\n" + styleSectionTitle.Render("ACTIONS") + "\n")
+	b.WriteString(featureRow("Enter / R", "run KYC read simulation", contentWidth))
+	if m.action != "" {
+		b.WriteString(featureRow("Last result", m.action, contentWidth))
+	}
+	return b.String()
+}
+
+func (m wizardModel) monitoringTab(contentWidth int) string {
+	var b strings.Builder
+	snap := loadNetworkSnapshot(m.target)
+	b.WriteString(styleSectionTitle.Render("MONITORING") + "\n")
+	if snap.net == nil {
+		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render("No network to monitor yet.") + "\n")
+		return b.String()
+	}
+	block := "unreachable"
+	if val, err := rpcString(snap.net.RPCURL, "eth_blockNumber", []any{}); err == nil {
+		block = val
+	}
+	explorer := "offline"
+	if explorerHealthy() {
+		explorer = "online"
+	}
+	b.WriteString(featureRow("RPC", snap.net.RPCURL, contentWidth))
+	b.WriteString(featureRow("Latest block", block, contentWidth))
+	b.WriteString(featureRow("Explorer", explorer, contentWidth))
+	b.WriteString(featureRow("Tracked contracts", fmt.Sprintf("%d", len(snap.net.Contracts)), contentWidth))
+	b.WriteString(featureRow("Evidence path", filepath.Join(filepath.Dir(networkPath(m.target)), "evidence"), contentWidth))
 	return b.String()
 }
 
@@ -313,7 +498,7 @@ func (m wizardModel) optionRow(cursor int, selected bool, label, desc string) st
 		marker = dot(green)
 	}
 	body := fmt.Sprintf("[ %s  %-28s %s ]", marker, label, desc)
-	if m.activeTab == tabDeploy && m.deployCursor == cursor {
+	if m.activeTab == tabNetworks && m.deployCursor == cursor {
 		prefix = styleGreen.Render("› ")
 		body = styleButtonActive.Render(body)
 	} else {
@@ -328,28 +513,10 @@ func (m wizardModel) primaryAction() string {
 		label = "Start OCI deployment"
 	}
 	body := styleButton.Render("[ " + label + " ]")
-	if m.activeTab == tabDeploy && m.deployCursor == deployCursorStart {
+	if m.activeTab == tabNetworks && m.deployCursor == deployCursorStart {
 		body = styleButtonActive.Render("[ " + label + " ]")
 	}
 	return "  " + body + "\n"
-}
-
-func (m wizardModel) operationsTab() string {
-	var b strings.Builder
-	b.WriteString(styleSectionTitle.Render("CONTROL SURFACE") + "\n")
-	b.WriteString(styleDim.Render("  local:    claw1 deploy --local [--json]") + "\n")
-	b.WriteString(styleDim.Render("            claw1 destroy --local [--json]") + "\n")
-	b.WriteString(styleDim.Render("  oci:      claw1 deploy --oci --yes [--json]") + "\n")
-	b.WriteString(styleDim.Render("            claw1 destroy --oci --dry-run") + "\n")
-	b.WriteString(styleDim.Render("  inspect:  claw1 inspect --local [--json]") + "\n")
-	b.WriteString(styleDim.Render("  wallets:  claw1 wallet list [--json]") + "\n")
-	b.WriteString(styleDim.Render("  explorer: claw1 explorer start | status | open") + "\n")
-	b.WriteString("\n")
-	b.WriteString(styleSectionTitle.Render("STATE AND EVIDENCE") + "\n")
-	b.WriteString(featureRow("State file", "~/.claw1/{name}/network.json", 84))
-	b.WriteString(featureRow("Reset", "scripts/reset.sh", 84))
-	b.WriteString(featureRow("Destroy posture", "OCI fails closed: dry-run, inventory, verify leftovers", 84))
-	return b.String()
 }
 
 func (m wizardModel) ociTab(contentWidth int) string {
@@ -392,6 +559,16 @@ func featureRow(label, value string, width int) string {
 		styleDim.Width(valueWidth).Render(value) + "\n"
 }
 
+func actionRow(active bool, label, key, desc string) string {
+	style := styleButton
+	prefix := "  "
+	if active {
+		style = styleButtonActive
+		prefix = styleGreen.Render("› ")
+	}
+	return prefix + style.Render(fmt.Sprintf("[ %-18s ]", label)) + " " + styleDim.Render(fmt.Sprintf("%-12s %s", key, desc))
+}
+
 func (m wizardModel) inputRow(label string, idx int) string {
 	style := styleInputInactive
 	prefix := "  "
@@ -401,4 +578,75 @@ func (m wizardModel) inputRow(label string, idx int) string {
 	}
 	return prefix + style.Render(fmt.Sprintf("%-14s", label)) +
 		" " + m.inputs[idx].View() + "\n"
+}
+
+type networkSnapshot struct {
+	net       *networkJSON
+	contracts []contract
+}
+
+func loadNetworkSnapshot(target deployTarget) networkSnapshot {
+	data, err := os.ReadFile(networkPath(target))
+	if err != nil {
+		return networkSnapshot{}
+	}
+	var net networkJSON
+	if err := json.Unmarshal(data, &net); err != nil {
+		return networkSnapshot{}
+	}
+	return networkSnapshot{net: &net, contracts: net.Contracts}
+}
+
+func clampCursor(next, count int) int {
+	if count <= 0 {
+		return 0
+	}
+	if next < 0 {
+		return count - 1
+	}
+	if next >= count {
+		return 0
+	}
+	return next
+}
+
+func walletBalance(rpcURL, address string) string {
+	result, err := rpcString(rpcURL, "eth_getBalance", []any{address, "latest"})
+	if err != nil {
+		return "unreachable"
+	}
+	wei := new(big.Int)
+	wei.SetString(strings.TrimPrefix(result, "0x"), 16)
+	eth := new(big.Rat).SetFrac(wei, big.NewInt(1_000_000_000_000_000_000))
+	return eth.FloatString(4) + " CLAW"
+}
+
+func walletNonce(rpcURL, address string) string {
+	result, err := rpcString(rpcURL, "eth_getTransactionCount", []any{address, "latest"})
+	if err != nil {
+		return "?"
+	}
+	n := new(big.Int)
+	n.SetString(strings.TrimPrefix(result, "0x"), 16)
+	return n.String()
+}
+
+func simulateKYCRead(target deployTarget) string {
+	snap := loadNetworkSnapshot(target)
+	if snap.net == nil {
+		return "Deploy a network first."
+	}
+	identityRegistry := findContract(snap.net, "IdentityRegistry")
+	if identityRegistry == "" {
+		return "IdentityRegistry not found in network.json."
+	}
+	out, err := exec.Command("cast", "call", identityRegistry, "isVerified(address)", "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC", "--rpc-url", snap.net.RPCURL).CombinedOutput()
+	if err != nil {
+		return "Simulation failed: " + oneLine(string(out), 100)
+	}
+	result := strings.TrimSpace(string(out))
+	if result == "true" || strings.HasSuffix(result, "1") {
+		return "KYC read passed: demo investor is verified."
+	}
+	return "KYC read returned: " + result
 }

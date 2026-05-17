@@ -70,6 +70,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.page = pageDeploy
 				return m, m.deploy.start()
 			}
+			if m.page == pageWizard && m.wizard.openDashboard() {
+				m.receipt = newReceiptModel(m.wizard.target, m.repoRoot)
+				m.page = pageReceipt
+				return m, m.receipt.init()
+			}
 			if m.page == pageDeploy && m.deploy.done && m.deploy.err == nil {
 				m.receipt = newReceiptModel(m.deploy.cfg.target, m.repoRoot)
 				m.page = pageReceipt
@@ -87,9 +92,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.deploy, cmd = m.deploy.Update(msg)
 		return m, cmd
 
-	// Delegate receipt messages
-	case blockHeightMsg, networkLoadedMsg, tickMsg, copyDoneMsg:
+	// Delegate receipt and dashboard messages
+	case blockHeightMsg, networkLoadedMsg, tickMsg, copyDoneMsg, explorerDoneMsg:
 		var cmd tea.Cmd
+		if m.page == pageWizard {
+			m.wizard, cmd = m.wizard.Update(msg)
+			return m, cmd
+		}
 		m.receipt, cmd = m.receipt.Update(msg)
 		return m, cmd
 	}

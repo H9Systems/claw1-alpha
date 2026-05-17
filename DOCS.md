@@ -232,38 +232,35 @@ En modo programático, un dry-run OCI sin `--yes` termina con código `1` despu�
 
 **Estado actual:** el spine programático ya existe y genera evidencia local + inventario Terraform. Si `oci` CLI está instalado, también ejecuta una búsqueda directa OCI por recursos `claw1`. La reparación OCI por tipo de recurso es la siguiente etapa de hardening; por ahora, si algo queda, el comando falla cerrado y muestra comandos manuales.
 
-### Pantalla 1: Asistente con pestañas
+### Pantalla 1: Control plane con pestañas
 
 ```
   CLAW1  PRIVATE L1 CONTROL PLANE  open-core stack for regulated Avalanche deployments
   Ship a sovereign chain with compliance, observability, and evidence in one run.
 
-  [Mission]    Compliance    Operations    OCI
+  [Networks]    Explorer    Contracts    Wallets    Simulate    Monitoring    OCI
 
-  MISSION
-  │  Use case               issue regulated debt tokens to verified wallets
-  │  Why L1                 compliance boundary stays native, liquidity can still route outward
-  │  Demo proof             verified transfer passes; unknown wallet is rejected
+  NETWORKS
+  › [ ●  Developer appliance          local private L1 ]
+    [ ○  Production target            OCI private L1 ]
+    [ ○  ICTT liquidity path           optional C-chain bridge workbench ]
+    [ ○  Deploy / reconcile            apply Terraform + contracts ]
+    [ ○  Open dashboard                post-deploy operations view ]
 
-  DEPLOYMENT RAIL
-  › [ ●  Developer appliance          local L1, fast repeatable demo ]
-    [ ○  Production target            OCI VM, same Terraform spine ]
-
-  RUNBOOK
-  │  1. Provision          Terraform declares and applies the L1
-  │  2. Compliance         ERC-3643, IdentityRegistry, KYC issuer
-  │  3. Observe            RPC, contracts, explorer, wallet surface
-  │  4. Preserve           local evidence bundle and deploy receipt
-
-  [ Start deployment ]
-
-  [←/→] tabs   [↑/↓] select   [Enter] activate   [Q] quit
+  CURRENT ENVIRONMENT
+  │  Name                  claw1demobank
+  │  Chain ID              432260
+  │  RPC                   http://127.0.0.1:9654/...
+  │  Contracts             9 tracked
 ```
 
-- **[←→]** cambia entre Mission, Compliance, Operations y OCI
-- **[↑↓]** selecciona rail o acción en Mission
-- **[Enter]** activa el target seleccionado o inicia el despliegue
-- **[↑↓]** navega campos OCI cuando la pestaña OCI está activa
+- **Networks** despliega o reconcilia local/OCI, activa ICTT y abre el dashboard
+- **Explorer** inicia o abre Blockscout
+- **Contracts** navega y copia direcciones desplegadas desde `network.json`
+- **Wallets** muestra balances/nonces y copia direcciones o llave demo local
+- **Simulate** ejecuta una lectura `IdentityRegistry.isVerified(...)`
+- **Monitoring** muestra RPC, bloque, explorer y rutas de evidencia
+- **OCI** configura credenciales y shape de producción
 
 ### Pantalla 2: Progreso del despliegue
 
