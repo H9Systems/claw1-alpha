@@ -4,116 +4,86 @@
 
 Las IFCs en Latam quieren tokenizar acciones de startups.
 
-GAFI no lo permite en cadenas públicas:
+GAFI no lo permite en cadenas publicas: cualquier billetera puede recibir tokens, el KYC depende del emisor, las transferencias no se pueden restringir por protocolo.
 
-- Cualquier billetera puede recibir tokens sin verificación
-- Las transferencias no se pueden restringir por protocolo
-- El KYC es una promesa del emisor, no una regla del código
+## La arquitectura
 
-Las instituciones necesitan una cadena donde el compliance sea el protocolo.
-
-## La arquitectura correcta
-
-Una L1 permisionada de Avalanche con ERC-3643 / T-REX cambia eso:
+L1 permisionada de Avalanche con ERC-3643 / T-REX:
 
 - Solo billeteras en el IdentityRegistry pueden recibir tokens
 - Cada transferencia es validada on-chain antes de ejecutarse
-- Si el receptor no tiene KYC, el smart contract rechaza la transferencia
+- Si el receptor no tiene KYC, el contrato rechaza la transferencia
 
-El cumplimiento GAFI queda codificado en el protocolo — no declarado en un slide.
+## Claw1
 
-## Claw1: toda la pila en un comando
-
-```bash
+```
 claw1 deploy
 ```
 
-Provisiona:
-
 - L1 permisionada con validadores
-- ERC-3643 / T-REX con IdentityRegistry y ClaimIssuer
-- Atestiguación on-chain del deployment
-- Evidencia local del run completo
-- Destroy limpio con inventario verificado
+- ERC-3643 / T-REX con IdentityRegistry
+- Atestiguacion on-chain del deployment
+- Evidencia local del run
 
 ## La demo
 
-```bash
+```
 claw1 demo
 ```
 
-El TUI guía cada paso:
+- L1 activa. Contratos de compliance desplegados.
+- Transfer a wallet verificada: aprobada
+- Transfer a wallet sin KYC: rechazada por el contrato
+- Evidence bundle: tx hashes, estado de compliance, log de rechazo
+- OCI limpio al final
 
-1. `claw1 inspect` → L1 activa, compliance contracts desplegados
-2. Transferencia a wallet verificada → **✓ OK** — en el IdentityRegistry
-3. Transferencia a wallet sin KYC → **✗ Rechazado**: IdentityRegistry: recipient not verified
-4. `claw1 inspect --evidence` → evidence bundle: tx hashes, rejection log, compliance state
-5. `claw1 destroy --yes` → OCI inventory clean. Nothing billable remains.
+## Oracle Cloud
 
-**El momento:** El smart contract rechaza la transferencia porque el receptor no está en el IdentityRegistry. Compliance GAFI por protocolo — no por promesa.
+Solo Terraform provider para Avalanche + OCI.
 
-## Diferenciación: Oracle Cloud
+[avalanche-deploy](https://github.com/ava-labs/avalanche-deploy) no tiene provider para Oracle.
 
-Solo Terraform provider para Avalanche + Oracle Cloud Infrastructure.
+```
+terraform apply
+```
 
-El repositorio [avalanche-deploy](https://github.com/ava-labs/avalanche-deploy) no tiene provider para Oracle.
+Mismo HCL en local y en produccion.
 
-Claw1 llena ese gap:
+## No es produccion
 
-- `terraform apply` despliega L1 + compliance contracts en OCI
-- Reproducible, declarativo, auditable
-- El mismo HCL que en local funciona en producción
+La version productiva agrega:
 
-## No es producción — es lo que la hace posible
-
-La versión productiva requiere:
-
-- Múltiples validadores distribuidos
+- Multiples validadores distribuidos
 - Llaves en HSM / OCI Vault
-- RBAC y auditoría externa
+- RBAC y auditoria externa
 - SLAs y upgrades gestionados
-- Evidencia firmada para reguladores
 
 Primero el equipo necesita reproducir todo el ciclo localmente.
 
-Ese es el producto que existe hoy.
-
 ## Hoja de ruta
 
-El appliance de hoy se convierte en infraestructura de mercado:
-
-- **ICTT bridge** — los tokens de la L1 cruzan al C-chain de Avalanche, desbloqueando liquidez en DEXs y protocolos públicos
-- **Compliance profiles** — configuraciones predefinidas por jurisdicción (CNBV, SEC, MiCA)
-- **Evidence bundles** — reportes listos para auditoría regulatoria
-- **Explorer privado** — dentro de la TUI, sin Blockscout
-
-Cada módulo se activa independientemente sobre el infra core existente.
+- ICTT bridge: tokens de la L1 en el C-chain de Avalanche
+- Compliance profiles: configuraciones por jurisdiccion
+- Evidence bundles: reportes para auditoria regulatoria
+- Explorer privado: dentro de la TUI
 
 ## Modelo
 
-Software abierto para adopción. Distribución enterprise para operación.
+Dev appliance libre para adopcion.
 
-| Tier | Descripción |
-|------|-------------|
-| Dev appliance | Deploy local libre — adopción sin fricción |
-| Enterprise | Templates multi-nodo, compliance presets, SLAs, HSM/Vault |
+Enterprise: templates multi-nodo, compliance presets, SLAs, HSM/Vault.
 
-El patrón Red Hat aplicado a infraestructura financiera regulada.
+El patron Red Hat para infraestructura financiera regulada.
 
-⚠️ *Esto no es una declaración oficial y podría cambiar por completo.*
+## Mercado
 
-## Regulación como arquitectura
+TAM: USD 31.28B en 2024, proyectado USD 1.43T en 2030.
 
-No prometemos cumplimiento legal.
+SAM: USD 4.8B en 2024, proyectado USD 38.5B en 2033.
 
-Construimos el foundation que lo hace posible:
+SOM: por definir.
 
-- Cadena permisionada → solo wallets verificadas pueden participar
-- T-REX IdentityRegistry → KYC on-chain nativo
-- Atestiguación on-chain → evidencia auditable e independiente
-- Destroy limpio → sin recursos fantasma ni evidencia incompleta
-
-**Regulación en mente desde day zero. No desde el compliance team.**
+Wedge inicial: developer appliance para equipos regulados en Latam.
 
 ## Repo
 
