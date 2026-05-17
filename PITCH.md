@@ -8,7 +8,7 @@ GAFI no lo permite en cadenas publicas: cualquier billetera puede recibir tokens
 
 ## La arquitectura
 
-L1 permisionada de Avalanche con ERC-3643 / T-REX:
+L1 permisionada de Avalanche con ==ERC-3643 / T-REX==:
 
 - Solo billeteras en el IdentityRegistry pueden recibir tokens
 - Cada transferencia es validada on-chain antes de ejecutarse
@@ -19,7 +19,7 @@ L1 permisionada de Avalanche con ERC-3643 / T-REX:
 `claw1 deploy`
 
 - L1 permisionada con validadores
-- ERC-3643 / T-REX con IdentityRegistry
+- ==ERC-3643 / T-REX== con IdentityRegistry
 - Atestiguacion on-chain del deployment
 - Evidencia local del run
 
@@ -28,14 +28,14 @@ L1 permisionada de Avalanche con ERC-3643 / T-REX:
 `claw1 demo`
 
 - L1 activa. Contratos de compliance desplegados.
-- Transfer a wallet verificada: aprobada
-- Transfer a wallet sin KYC: rechazada por el contrato
+- Transfer a wallet verificada: ==aprobada==
+- Transfer a wallet sin KYC: ==rechazada por el contrato==
 - Evidence bundle: tx hashes, estado de compliance
 - OCI limpio al final
 
 ## Oracle Cloud
 
-Solo Terraform provider para Avalanche + OCI.
+Solo Terraform provider para ==Avalanche + OCI==.
 
 [avalanche-deploy](https://github.com/ava-labs/avalanche-deploy) no tiene provider para Oracle.
 
@@ -48,7 +48,7 @@ Mismo HCL en local y en produccion.
 La version productiva agrega:
 
 - Multiples validadores distribuidos
-- Llaves en HSM / OCI Vault
+- Llaves en ==HSM / OCI Vault==
 - RBAC y auditoria externa
 - SLAs y upgrades gestionados
 
@@ -56,7 +56,7 @@ Primero el equipo necesita reproducir todo el ciclo localmente.
 
 ## Hoja de ruta
 
-- ICTT bridge: tokens de la L1 en el C-chain de Avalanche
+- ==ICTT bridge==: tokens de la L1 en el C-chain de Avalanche
 - Compliance profiles: configuraciones por jurisdiccion
 - Evidence bundles: reportes para auditoria regulatoria
 - Explorer privado: dentro de la TUI
@@ -67,7 +67,7 @@ Dev appliance libre para adopcion.
 
 Enterprise: templates multi-nodo, compliance presets, SLAs, HSM/Vault.
 
-El patron Red Hat para infraestructura financiera regulada.
+El patron ==Red Hat== para infraestructura financiera regulada.
 
 ## Mercado
 

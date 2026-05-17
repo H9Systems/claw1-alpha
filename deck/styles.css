@@ -16,4 +16,5 @@ html, body { touch-action: pan-x; }
   --color-code-bg: #1a1e17;
   --color-code-border: #2f3529;
   --color-code-text: #3dba4a;
+  --color-highlight: #8eed9f;
 }

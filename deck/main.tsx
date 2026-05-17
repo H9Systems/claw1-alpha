@@ -103,9 +103,9 @@ function CodeBlock({ code }: { code: string }) {
 /* ── Inline renderer ────────────────────────────────────────────────────────── */
 
 function renderInline(text: string) {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g)
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|==([^=]+)==|\[([^\]]+)\]\((https?:\/\/[^)]+)\))/g)
   return parts.map((part, index) => {
-    if (part.startsWith('`') && part.endsWith('`')) {
+    if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
       return (
         <code
           key={index}
@@ -120,6 +120,22 @@ function renderInline(text: string) {
         <strong key={index} className="text-claw-orange font-bold">
           {part.slice(2, -2)}
         </strong>
+      )
+    }
+    if (part.startsWith('==') && part.endsWith('==')) {
+      return (
+        <span key={index} className="text-highlight font-medium">
+          {part.slice(2, -2)}
+        </span>
+      )
+    }
+    const linkMatch = part.match(/^\[([^\]]+)\]\((https?:\/\/[^)]+)\)$/)
+    if (linkMatch) {
+      return (
+        <a key={index} href={linkMatch[2]} target="_blank" rel="noopener noreferrer"
+          className="text-highlight underline underline-offset-2 hover:text-accent transition-colors">
+          {linkMatch[1]}
+        </a>
       )
     }
     return <React.Fragment key={index}>{part}</React.Fragment>
