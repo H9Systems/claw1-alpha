@@ -2,11 +2,11 @@
 
 ## El problema
 
-El tooling para L1s privadas esta fragmentado.
+El tooling para L1s privadas está fragmentado.
 
-- avalanche-cli, la herramienta oficial, esta en modo mantenimiento
-- Genesis, permisos, contratos, tokens, bridge: herramientas separadas sin orquestacion
-- Alchemy y Tenderly son excelentes. Solo sirven cadenas publicas.
+- avalanche-cli, la herramienta oficial, está en modo mantenimiento
+- Génesis, permisos, contratos, tokens, bridge: herramientas separadas sin orquestación
+- Alchemy y Tenderly son excelentes. Solo sirven cadenas públicas.
 
 Los equipos que despliegan L1s propias no tienen su Alchemy.
 
@@ -14,7 +14,7 @@ Los equipos que despliegan L1s propias no tienen su Alchemy.
 
 Avalanche permite L1s soberanas e interoperables.
 
-La adopcion institucional exige lo mismo que las cadenas publicas ya tienen:
+La adopción institucional exige lo mismo que las cadenas públicas ya tienen:
 
 - RPC confiable
 - Logs, traces, entornos reproducibles
@@ -22,13 +22,24 @@ La adopcion institucional exige lo mismo que las cadenas publicas ya tienen:
 
 Claw1 es ese stack, con modelo ==open core==.
 
+## ¿Por qué una L1?
+
+Una fintech quiere emitir tokens de deuda para inversores verificados.
+
+- ==Hyperledger / Corda==: KYC posible, pero tokens atrapados dentro de la red privada. Sin liquidez. Sin mercado secundario.
+- ==Cadena pública==: liquidez total, pero FATF lo prohíbe — cualquier wallet puede recibir los tokens.
+
+Con una L1 de Avalanche: solo wallets verificadas participan, y vía ==ICTT== los tokens alcanzan el C-chain público.
+
+Cumplimiento nativo y liquidez DeFi. En el mismo stack.
+
 ## Claw1
 
 `claw1 deploy`
 
 - L1 permisionada con validadores
 - Contratos de identidad y compliance por defecto
-- Atestiguacion on-chain del deployment
+- Atestiguación on-chain del deployment
 - Evidencia local del run
 
 ## La demo
@@ -48,7 +59,7 @@ El wizard incluye plantillas de compliance por defecto.
 Como el ==OpenZeppelin wizard== para contratos, pero para infraestructura.
 
 - ==ERC-3643 / T-REX== con IdentityRegistry preconfigurado
-- KYC y restricciones de transferencia habilitados desde genesis
+- KYC y restricciones de transferencia habilitados desde génesis
 - Orientado a GAFI / AML desde el primer bloque
 
 ## Oracle Cloud
@@ -59,22 +70,15 @@ Solo Terraform provider para ==Avalanche + OCI==.
 
 `terraform apply`
 
-Mismo HCL en local y en produccion.
-
-## Hoja de ruta
-
-- ==ICTT bridge==: tokens de la L1 en el C-chain de Avalanche
-- Compliance profiles: configuraciones por jurisdiccion
-- Evidence bundles: reportes para auditoria
-- Explorer privado: dentro de la TUI
+Mismo HCL en local y en producción.
 
 ## Modelo
 
-Dev appliance libre para adopcion.
+Dev appliance libre para adopción.
 
 Enterprise: templates multi-nodo, compliance presets, SLAs, HSM/Vault.
 
-El patron ==Red Hat== para infraestructura financiera regulada.
+El patrón ==Red Hat== para infraestructura financiera regulada.
 
 ## Mercado
 
@@ -86,8 +90,8 @@ SOM: por definir.
 
 Wedge: developer appliance para equipos regulados en Latam.
 
-## Documentacion
+## Documentación
 
-Para la documentacion completa, visita el repositorio en GitHub.
+Para la documentación completa, visita el repositorio en GitHub.
 
 `https://github.com/h9systems/claw1-alpha`
