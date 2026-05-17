@@ -83,12 +83,13 @@ El patrón ==Red Hat== para infraestructura financiera regulada.
 ## Mercado
 
 ==TAM==: USD 31.28B en 2024, proyectado USD 1.43T en 2030.
+Infraestructura blockchain global. Toda industria regulada evalúa cadena propia para liquidación, cumplimiento y tokenización de activos.
 
 ==SAM==: USD 4.8B en 2024, proyectado USD 38.5B en 2033.
+Developer platforms Web3. El segmento donde operan Alchemy, Infura y Tenderly — infraestructura para construir sobre blockchain.
 
 ==SOM==: por definir.
-
-Wedge: developer appliance para equipos regulados en Latam.
+Fintechs reguladas en Latam que necesitan L1 propia con compliance nativo. Se define al cerrar los primeros contratos.
 
 ## Documentación
 
