@@ -43,25 +43,17 @@ function parsePitch(markdown: string): Slide[] {
 
 /* ── Title renderer: "Claw" orange, "1" red ─────────────────────────────────── */
 
-function SlideTitle({ text }: { text: string }) {
-  if (text === 'Claw1') {
-    return (
-      <>
-        <span className="text-claw-orange">Claw</span>
-        <span className="text-claw-red">1</span>
-      </>
-    )
-  }
-  // Style any "Claw1" or "L1" occurrences within a longer title
-  if (text.includes('Claw1') || text.includes('L1')) {
-    const parts = text.split(/(Claw1|L1)/)
-    const renderParts = () =>
-      parts.map((part, i) => {
+function SlideTitle({ text, cover = false }: { text: string; cover?: boolean }) {
+  if (cover && text.startsWith('Despliega')) {
+    const [, afterDespliega] = text.split('Despliega ')
+    const restParts = afterDespliega.split(/(Claw1|L1)/)
+    const renderRest = () =>
+      restParts.map((part, i) => {
         if (part === 'Claw1') {
           return (
-            <span key={i}>
-              <span className="text-claw-orange">Claw</span>
-              <span className="text-claw-red">1</span>
+            <span key={i} className="group/claw1">
+              <span className="text-claw-orange group-hover:text-ink-muted group-hover/claw1:!text-claw-orange transition-colors">Claw</span>
+              <span className="text-claw-red group-hover:text-ink-muted group-hover/claw1:!text-claw-red transition-colors">1</span>
             </span>
           )
         }
@@ -70,37 +62,14 @@ function SlideTitle({ text }: { text: string }) {
             <span key={i} className="text-claw-red">L1</span>
           )
         }
-        return <span key={i}>{part}</span>
+        return <span key={i} className="group-hover:text-ink-muted transition-colors">{part}</span>
       })
-    // First slide: break after first word
-    if (text.startsWith('Despliega')) {
-      const [, afterDespliega] = text.split('Despliega ')
-      const restParts = afterDespliega.split(/(Claw1|L1)/)
-      const renderRest = () =>
-        restParts.map((part, i) => {
-          if (part === 'Claw1') {
-            return (
-              <span key={i} className="group/claw1">
-                <span className="text-claw-orange group-hover:text-ink-muted group-hover/claw1:!text-claw-orange transition-colors">Claw</span>
-                <span className="text-claw-red group-hover:text-ink-muted group-hover/claw1:!text-claw-red transition-colors">1</span>
-              </span>
-            )
-          }
-          if (part === 'L1') {
-            return (
-              <span key={i} className="text-claw-red">L1</span>
-            )
-          }
-          return <span key={i} className="group-hover:text-ink-muted transition-colors">{part}</span>
-        })
-      return (
-        <>
-          <div className="text-claw-red group-hover:text-ink-muted transition-colors">DESPLIEG<span className="relative inline-flex items-center justify-center" style={{ width: '0.7em' }}><span className="opacity-0">A</span><svg className="absolute group-hover:fill-[#d42020] transition-colors" style={{ top: '0.17em', left: '0.08em', width: '0.7em', height: '0.7em' }} viewBox="1 1 14 14" fill="#d42020"><polygon points="8,1 15,15 1,15"/></svg></span> </div>
-          <div className="mt-4 sm:mt-8">{renderRest()}</div>
-        </>
-      )
-    }
-    return <>{renderParts()}</>
+    return (
+      <>
+        <div className="text-claw-red group-hover:text-ink-muted transition-colors">DESPLIEG<span className="relative inline-flex items-center justify-center" style={{ width: '0.7em' }}><span className="opacity-0">A</span><svg className="absolute group-hover:fill-[#d42020] transition-colors" style={{ top: '0.17em', left: '0.08em', width: '0.7em', height: '0.7em' }} viewBox="1 1 14 14" fill="#d42020"><polygon points="8,1 15,15 1,15"/></svg></span> </div>
+        <div className="mt-4 sm:mt-8">{renderRest()}</div>
+      </>
+    )
   }
   return <>{text}</>
 }
@@ -293,7 +262,7 @@ function Deck() {
               <h1 className="m-0 text-accent text-[clamp(28px,7vw,80px)] sm:text-[clamp(36px,6vw,80px)] leading-[0.95] tracking-tight font-extrabold">
                 {index === 0 ? (
                   <a href="https://github.com/H9Systems/claw1-alpha" target="_blank" rel="noopener noreferrer" className="group text-ink no-underline hover:text-ink-muted transition-colors">
-                    <SlideTitle text={slide.title} />
+                    <SlideTitle text={slide.title} cover />
                   </a>
                 ) : (
                   <SlideTitle text={slide.title} />
