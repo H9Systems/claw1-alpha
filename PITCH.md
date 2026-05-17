@@ -2,71 +2,69 @@
 
 ## El problema
 
-El tooling para L1s privadas está fragmentado.
+El tooling oficial para L1s en Avalanche tiene límites claros.
 
-- avalanche-cli, la herramienta oficial, está en modo mantenimiento
-- Génesis, permisos, contratos, tokens, bridge: herramientas separadas sin orquestación
-- Alchemy y Tenderly son excelentes. Solo sirven cadenas públicas.
+- avalanche-cli está en modo mantenimiento: 177 problemas abiertos sin resolver
+- Funciona para el primer prototipo local. El primer redespliegue, agregar un validador o salir a producción requieren workarounds que a menudo fallan
+- Génesis, contratos, bridge, monitoreo: herramientas separadas que el equipo une a mano
 
-Los equipos que despliegan L1s propias no tienen su Alchemy.
+Los equipos que construyen L1s propias merecen lo que los equipos de cadenas públicas ya tienen.
 
 ## La oportunidad
 
-Avalanche permite L1s soberanas e interoperables.
+Claw1 lleva avalanche-cli hasta donde no podía llegar.
 
-La adopción institucional exige lo mismo que las cadenas públicas ya tienen:
+- Redespliegues limpios sin perder estado
+- Local y producción con el mismo comando
+- Red, contratos y evidencia orquestados desde el primer deploy
 
-- RPC confiable
-- Logs, traces, entornos reproducibles
-- Soporte cuando algo falla
-
-Claw1 es ese stack, con modelo ==open core==.
+Alchemy y Tenderly resolvieron esto para cadenas públicas. Claw1 lo resuelve para L1s privadas, con modelo ==open core==.
 
 ## ¿Por qué una L1?
 
 Una fintech quiere emitir tokens de deuda para inversores verificados.
 
-- ==Hyperledger / Corda==: KYC posible, pero tokens atrapados. Sin liquidez. Sin mercado secundario.
-- ==Cadena pública==: liquidez total, pero GAFI lo prohíbe — cualquier wallet puede recibir los tokens.
+- ==Hyperledger / Corda==: control total, pero los tokens quedan atrapados. Sin liquidez. Sin mercado secundario.
+- ==Cadena pública==: liquidez total, pero GAFI lo prohíbe — cualquier billetera puede recibir los tokens.
 
-Con una L1 de Avalanche: GAFI cumplido por protocolo, y vía ==ICTT== los tokens alcanzan el C-chain público.
+Con una L1 de Avalanche: GAFI cumplido por protocolo, y vía ==ICTT== los tokens alcanzan la red pública de Avalanche.
 
-Cumplimiento nativo y liquidez DeFi. En el mismo stack.
+Cumplimiento regulatorio y liquidez. En el mismo stack.
 
 ## Un comando. Todo el stack.
 
 `claw1 deploy`
 
-- L1 permisionada con validadores
-- Contratos de identidad y compliance por defecto
-- Atestiguación on-chain del deployment
-- Evidencia local del run
+- Red blockchain privada con validadores
+- Contratos regulatorios listos para usar
+- Registro en blockchain de todo lo que desplegaste
+- Evidencia local del ciclo completo
 
-## El producto hoy
+## Así funciona
 
 `claw1 demo`
 
-- L1 activa. Contratos desplegados.
-- Transfer a wallet verificada: ==aprobada==
-- Transfer a wallet sin KYC: ==rechazada por el contrato==
-- Evidence bundle generado
-- OCI limpio al final
+- Red activa. Contratos desplegados.
+- Transferencia a billetera verificada: ==aprobada==
+- Transferencia a billetera sin KYC: ==rechazada por el contrato==
+- Paquete de evidencia generado
+- Entorno en la nube limpio al final
 
-## Compliance incluido
+## Plantillas preconfiguradas: desde la infraestructura hasta la regulación
 
-El wizard incluye plantillas de compliance por defecto.
+El wizard incluye plantillas de cumplimiento por defecto.
 
-Como el ==OpenZeppelin wizard== para contratos, pero para infraestructura.
+Como el ==OpenZeppelin wizard== para contratos, pero para infraestructura completa.
 
-- ==ERC-3643 / T-REX== con IdentityRegistry preconfigurado
-- KYC y restricciones de transferencia habilitados desde génesis
-- Orientado a GAFI / AML desde el primer bloque
+- ==ERC-3643 / T-REX== con registro de identidad preconfigurado
+- KYC y restricciones de transferencia desde el primer bloque
+- Orientado a GAFI / AML desde génesis
 
 ## Hecho para DevOps
 
-Los ingenieros de infraestructura viven en la terminal. Infra-as-code es el estándar — Oracle, AWS y GCP lo adoptan por defecto.
+Los equipos de infraestructura de fintechs viven en la terminal. Infra-as-code es el estándar — Oracle, AWS y GCP lo adoptan por defecto.
 
-Un SSH y tienes todo: avalanche-cli, forge, terraform. Listo para desarrollar tu L1.
+Una conexión SSH y tienes todo el entorno listo para desarrollar tu L1.
 
 `terraform apply`
 
@@ -74,22 +72,22 @@ Solo Terraform provider para ==Avalanche + OCI==. [avalanche-deploy](https://git
 
 ## Open Core
 
-Dev appliance libre para adopción.
+Núcleo abierto para adopción.
 
-Enterprise: templates multi-nodo, compliance presets, SLAs, HSM/Vault.
+Enterprise: plantillas multi-nodo, presets de cumplimiento, SLAs, integración con sistemas de llaves corporativos.
 
 El patrón ==Red Hat== para infraestructura financiera regulada.
 
 ## Mercado
 
 ==TAM==: USD 31.28B en 2024, proyectado USD 1.43T en 2030.
-Infraestructura blockchain global. Toda industria regulada evalúa cadena propia para liquidación, cumplimiento y tokenización de activos.
+Infraestructura blockchain global. Toda industria regulada evalúa red propia para liquidación, cumplimiento y tokenización de activos.
 
 ==SAM==: USD 4.8B en 2024, proyectado USD 38.5B en 2033.
-Developer platforms Web3. El segmento donde operan Alchemy, Infura y Tenderly — infraestructura para construir sobre blockchain.
+Plataformas para desarrolladores Web3. El segmento donde operan Alchemy, Infura y Tenderly.
 
 ==SOM==: por definir.
-Fintechs reguladas en Latam que necesitan L1 propia con compliance nativo. Se define al cerrar los primeros contratos.
+Fintechs reguladas en Latam que necesitan red propia con cumplimiento nativo. Se define al cerrar los primeros contratos.
 
 ## Documentación
 
