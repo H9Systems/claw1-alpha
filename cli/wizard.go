@@ -132,7 +132,9 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 			case m.activeTab == tabContracts:
 				m.itemCursor = clampCursor(m.itemCursor+1, len(loadNetworkSnapshot(m.target).contracts))
 			case m.activeTab == tabWallets:
-				m.itemCursor = clampCursor(m.itemCursor+1, len(demoWallets()))
+				m.itemCursor = clampCursor(m.itemCursor+1, len(trexRecipients()))
+			case m.activeTab == tabSimulate:
+				m.itemCursor = clampCursor(m.itemCursor+1, len(trexRecipients()))
 			case m.activeTab == tabOCI && m.target == targetOCI:
 				m.focus = (m.focus + 1) % numInputs
 			}
@@ -144,7 +146,9 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 			case m.activeTab == tabContracts:
 				m.itemCursor = clampCursor(m.itemCursor-1, len(loadNetworkSnapshot(m.target).contracts))
 			case m.activeTab == tabWallets:
-				m.itemCursor = clampCursor(m.itemCursor-1, len(demoWallets()))
+				m.itemCursor = clampCursor(m.itemCursor-1, len(trexRecipients()))
+			case m.activeTab == tabSimulate:
+				m.itemCursor = clampCursor(m.itemCursor-1, len(trexRecipients()))
 			case m.activeTab == tabOCI && m.target == targetOCI:
 				m.focus = (m.focus - 1 + numInputs) % numInputs
 			}
@@ -166,12 +170,11 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 					return m, copyToClipboard(snap.contracts[m.itemCursor].Address)
 				}
 			case tabWallets:
-				wallets := demoWallets()
-				if len(wallets) > 0 {
-					return m, copyToClipboard(wallets[m.itemCursor].Address)
-				}
+				recipient := selectedTrexRecipient(m.itemCursor)
+				m.action = simulateTrexTransfer(m.target, recipient.Address, "1").Message
 			case tabSimulate:
-				m.action = simulateKYCRead(m.target)
+				recipient := selectedTrexRecipient(m.itemCursor)
+				m.action = simulateTrexTransfer(m.target, recipient.Address, "1").Message
 			}
 		case "s", "S":
 			if m.activeTab == tabExplorer {
@@ -189,11 +192,11 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 				}
 			}
 			if m.activeTab == tabWallets {
-				wallets := demoWallets()
-				return m, copyToClipboard(wallets[m.itemCursor].Address)
+				recipient := selectedTrexRecipient(m.itemCursor)
+				return m, copyToClipboard(recipient.Address)
 			}
 		case "k", "K":
-			if m.activeTab == tabWallets && m.itemCursor == 0 {
+			if m.activeTab == tabWallets {
 				snap := loadNetworkSnapshot(m.target)
 				if snap.net != nil {
 					return m, copyToClipboard(hexPrivateKey(snap.net.DeployerPrivateKey))
@@ -205,7 +208,23 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 			}
 		case "r", "R":
 			if m.activeTab == tabSimulate {
-				m.action = simulateKYCRead(m.target)
+				recipient := selectedTrexRecipient(m.itemCursor)
+				m.action = simulateTrexTransfer(m.target, recipient.Address, "1").Message
+			}
+		case "t", "T":
+			if m.activeTab == tabWallets {
+				recipient := selectedTrexRecipient(m.itemCursor)
+				sim := simulateTrexTransfer(m.target, recipient.Address, "1")
+				if !sim.Approved {
+					m.action = sim.Message
+					break
+				}
+				tx, err := sendTrexTransfer(m.target, recipient.Address, "1")
+				if err != nil {
+					m.action = "Transfer failed: " + oneLine(err.Error(), 120)
+				} else {
+					m.action = "Sent 1 CEQ to " + shortAddr(recipient.Address) + " tx " + shortAddr(tx)
+				}
 			}
 		}
 	case copyDoneMsg:
@@ -339,7 +358,7 @@ func (m wizardModel) View(width int) string {
 		b.WriteString("\n" + styleYellow.Render("  "+m.action) + "\n")
 	}
 
-	b.WriteString(styleKeys.Render("\n  [←/→] tabs   [↑/↓] select   [Enter] activate   [A] copy address   [Q] quit"))
+	b.WriteString(styleKeys.Render("\n  [←/→] tabs   [↑/↓] select   [Enter] simulate/activate   [T] send CEQ   [A] copy address   [Q] quit"))
 
 	inner := b.String()
 	return styleBox.Width(width - 4).Render(inner)
@@ -392,6 +411,7 @@ func (m wizardModel) networksTab(contentWidth int) string {
 func (m wizardModel) explorerTab(contentWidth int) string {
 	var b strings.Builder
 	x := loadExplorerSnapshot(m.target, 6)
+	transfers, transferErr := trexTransferHistory(m.target, "", 8)
 	b.WriteString(styleSectionTitle.Render("EMBEDDED EXPLORER") + "\n")
 	if x.Err != "" {
 		b.WriteString("  " + dot(red) + "  " + styleRed.Render(x.Err) + "\n")
@@ -415,6 +435,20 @@ func (m wizardModel) explorerTab(contentWidth int) string {
 				b.WriteString(styleDim.Render("             tx "+shortAddr(tx)) + "\n")
 			}
 		}
+	}
+	b.WriteString("\n" + styleSectionTitle.Render("T-REX TRANSFERS") + "\n")
+	if transferErr != nil {
+		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render(oneLine(transferErr.Error(), 110)) + "\n")
+		return b.String()
+	}
+	if len(transfers) == 0 {
+		b.WriteString(styleDim.Render("  No CEQ Transfer events yet. Send from Wallets, then refresh this tab.") + "\n")
+		return b.String()
+	}
+	for _, tx := range transfers {
+		b.WriteString("  " + styleKicker.Render("#"+fmt.Sprintf("%-6s", tx.Block)) +
+			styleValue.Render(fmt.Sprintf(" %-10s CEQ ", tx.Amount)) +
+			styleDim.Render(shortAddr(tx.From)+" -> "+shortAddr(tx.To)+"  "+shortAddr(tx.TxHash)) + "\n")
 	}
 	return b.String()
 }
@@ -447,40 +481,82 @@ func (m wizardModel) walletsTab(contentWidth int) string {
 	var b strings.Builder
 	snap := loadNetworkSnapshot(m.target)
 	b.WriteString(styleSectionTitle.Render("WALLETS") + "\n")
-	for i, w := range demoWallets() {
+	if snap.net == nil {
+		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render("Deploy a network first. Wallets need the selected L1 RPC.") + "\n")
+		return b.String()
+	}
+	token := trexTokenAddress(snap.net)
+	identity := identityRegistryAddress(snap.net)
+	sender := demoWallets()[0]
+	b.WriteString(featureRow("Sender", sender.Name+"  "+sender.Address, contentWidth))
+	b.WriteString(featureRow("Native balance", walletBalance(snap.net.RPCURL, sender.Address)+"  nonce "+walletNonce(snap.net.RPCURL, sender.Address), contentWidth))
+	if token == "" {
+		b.WriteString(featureRow("CEQ token", "not deployed", contentWidth))
+	} else {
+		b.WriteString(featureRow("CEQ balance", trexBalance(snap.net.RPCURL, token, sender.Address), contentWidth))
+	}
+	b.WriteString(featureRow("C-Chain", "planned rail; CEQ transfer is local private L1 today", contentWidth))
+	b.WriteString("\n" + styleSectionTitle.Render("SEND CEQ") + "\n")
+	for i, r := range trexRecipients() {
 		prefix := "  "
-		name := styleValue.Render(fmt.Sprintf("%-12s", w.Name))
+		name := styleValue.Render(fmt.Sprintf("%-24s", r.Name))
 		if i == m.itemCursor {
 			prefix = styleGreen.Render("› ")
-			name = styleButtonActive.Render(fmt.Sprintf("%-12s", w.Name))
+			name = styleButtonActive.Render(fmt.Sprintf("%-24s", r.Name))
 		}
-		bal, nonce := "n/a", "n/a"
-		if snap.net != nil {
-			bal = walletBalance(snap.net.RPCURL, w.Address)
-			nonce = walletNonce(snap.net.RPCURL, w.Address)
+		verified := "unverified"
+		if trexIsVerified(snap.net.RPCURL, identity, r.Address) {
+			verified = "verified"
 		}
-		b.WriteString(prefix + name + styleGreen.Render(w.Address) + styleDim.Render("  balance "+bal+"  nonce "+nonce) + "\n")
+		ceq := "n/a"
+		if token != "" {
+			ceq = trexBalance(snap.net.RPCURL, token, r.Address)
+		}
+		b.WriteString(prefix + name + styleGreen.Render(r.Address) + styleDim.Render("  "+verified+"  "+ceq) + "\n")
 	}
+	b.WriteString(styleDim.Render("  Amount: 1 CEQ. Use `claw1 wallet send --to <addr> --amount <n>` for manual transfers.\n"))
 	b.WriteString("\n" + styleSectionTitle.Render("ACTIONS") + "\n")
-	b.WriteString(featureRow("Enter / A", "copy selected address", contentWidth))
+	b.WriteString(featureRow("Enter", "simulate selected 1 CEQ transfer", contentWidth))
+	b.WriteString(featureRow("T", "send selected 1 CEQ transfer if simulation passes", contentWidth))
+	b.WriteString(featureRow("A", "copy selected recipient address", contentWidth))
 	b.WriteString(featureRow("K", "copy deployer private key for local demo wallet", contentWidth))
+	b.WriteString("\n" + styleSectionTitle.Render("TRANSFER HISTORY") + "\n")
+	transfers, err := trexTransferHistory(m.target, sender.Address, 6)
+	if err != nil {
+		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render(oneLine(err.Error(), 100)) + "\n")
+		return b.String()
+	}
+	if len(transfers) == 0 {
+		b.WriteString(styleDim.Render("  No CEQ Transfer events for sender yet.\n"))
+		return b.String()
+	}
+	for _, tx := range transfers {
+		b.WriteString("  " + styleKicker.Render("#"+fmt.Sprintf("%-6s", tx.Block)) +
+			styleValue.Render(fmt.Sprintf(" %-10s CEQ ", tx.Amount)) +
+			styleDim.Render(shortAddr(tx.From)+" -> "+shortAddr(tx.To)+"  "+shortAddr(tx.TxHash)) + "\n")
+	}
 	return b.String()
 }
 
 func (m wizardModel) simulateTab(contentWidth int) string {
 	var b strings.Builder
 	snap := loadNetworkSnapshot(m.target)
+	recipient := selectedTrexRecipient(m.itemCursor)
+	sim := simulateTrexTransfer(m.target, recipient.Address, "1")
 	b.WriteString(styleSectionTitle.Render("SIMULATE") + "\n")
-	b.WriteString(featureRow("Purpose", "preview contract behavior before users hit it", contentWidth))
-	b.WriteString(featureRow("Current check", "IdentityRegistry.isVerified(demo investor)", contentWidth))
-	b.WriteString(featureRow("C-Chain check", "planned: simulate bridge receive before sending", contentWidth))
+	b.WriteString(featureRow("Purpose", "preview a CEQ transfer against T-REX compliance before broadcast", contentWidth))
+	b.WriteString(featureRow("Scenario", "deployer sends 1 CEQ to selected recipient", contentWidth))
+	b.WriteString(featureRow("Recipient", recipient.Name+"  "+recipient.Address, contentWidth))
+	b.WriteString(featureRow("Verdict", sim.Message, contentWidth))
+	b.WriteString(featureRow("C-Chain check", "planned: simulate bridge receive before C-Chain liquidity rail", contentWidth))
 	if snap.net == nil {
 		b.WriteString("\n  " + dot(yellow) + "  " + styleYellow.Render("Deploy a network first.") + "\n")
 		return b.String()
 	}
-	b.WriteString(featureRow("IdentityRegistry", findContract(snap.net, "IdentityRegistry"), contentWidth))
+	b.WriteString(featureRow("T-REX token", trexTokenAddress(snap.net), contentWidth))
+	b.WriteString(featureRow("IdentityRegistry", identityRegistryAddress(snap.net), contentWidth))
 	b.WriteString("\n" + styleSectionTitle.Render("ACTIONS") + "\n")
-	b.WriteString(featureRow("Enter / R", "run KYC read simulation", contentWidth))
+	b.WriteString(featureRow("Enter / R", "rerun selected transfer simulation", contentWidth))
 	if m.action != "" {
 		b.WriteString(featureRow("Last result", m.action, contentWidth))
 	}

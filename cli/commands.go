@@ -284,6 +284,63 @@ func runWalletCLI(args []string) int {
 		}
 		return 0
 	}
+	switch rest[0] {
+	case "simulate":
+		to, amount := parseWalletArgs(rest[1:])
+		if to == "" {
+			to = selectedTrexRecipient(0).Address
+		}
+		sim := simulateTrexTransfer(opt.target, to, amount)
+		status := "rejected"
+		if sim.Approved {
+			status = "approved"
+		}
+		sink.emit(workflowEvent{RunID: runID, Workflow: "wallet", Step: "simulate", Status: status, ResourceID: to, Message: sim.Message})
+		if sim.Approved {
+			return 0
+		}
+		return 1
+	case "send":
+		to, amount := parseWalletArgs(rest[1:])
+		if to == "" {
+			fmt.Fprintln(os.Stderr, "usage: claw1 wallet send --to <address> [--amount 1] [--local] [--json]")
+			return 2
+		}
+		sim := simulateTrexTransfer(opt.target, to, amount)
+		if !sim.Approved {
+			sink.emit(workflowEvent{RunID: runID, Workflow: "wallet", Step: "send", Status: "failed_closed", ErrorCode: "simulation_rejected", ResourceID: to, Message: sim.Message})
+			return 1
+		}
+		tx, err := sendTrexTransfer(opt.target, to, amount)
+		if err != nil {
+			sink.emit(workflowEvent{RunID: runID, Workflow: "wallet", Step: "send", Status: "failed_closed", ErrorCode: "transfer_failed", ResourceID: to, Message: err.Error()})
+			return 1
+		}
+		sink.emit(workflowEvent{RunID: runID, Workflow: "wallet", Step: "send", Status: "succeeded", ResourceID: to, TxHash: tx, Message: amount + " CEQ transferred"})
+		return 0
+	case "history":
+		address, _ := parseWalletArgs(rest[1:])
+		transfers, err := trexTransferHistory(opt.target, address, 25)
+		if err != nil {
+			sink.emit(workflowEvent{RunID: runID, Workflow: "wallet", Step: "history", Status: "failed_closed", ErrorCode: "history_failed", Message: err.Error()})
+			return 1
+		}
+		if opt.json {
+			for _, tx := range transfers {
+				sink.emit(workflowEvent{RunID: runID, Workflow: "wallet", Step: "history", Status: "found", ResourceID: tx.To, TxHash: tx.TxHash, Message: tx.Amount + " CEQ from " + tx.From + " at block " + tx.Block})
+			}
+			return 0
+		}
+		if len(transfers) == 0 {
+			fmt.Println("No CEQ Transfer events found.")
+			return 0
+		}
+		for _, tx := range transfers {
+			fmt.Printf("#%-6s %10s CEQ  %s -> %s  %s\n", tx.Block, tx.Amount, shortAddr(tx.From), shortAddr(tx.To), tx.TxHash)
+		}
+		return 0
+	}
+	fmt.Fprintln(os.Stderr, "usage: claw1 wallet [list|simulate|send|history] [--to <address>] [--amount 1] [--local] [--json]")
 	return 2
 }
 

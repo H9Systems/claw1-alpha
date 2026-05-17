@@ -2,7 +2,7 @@
 
 Esta guía cubre todo lo necesario para poner en marcha Claw1, desde cero hasta una L1 Avalanche privada con contratos de cumplimiento desplegados, ya sea en local o en Oracle Cloud (OCI).
 
-> **Spec vigente:** `claw1` es la TUI/CLI operativa. El flujo web queda limitado al pitch deck estático en `/`, leído desde `PITCH.md`. Blockscout y MetaMask ya no son dependencias del camino crítico de demo; la TUI/CLI cubre observabilidad del run y wallets de prueba.
+> **Spec vigente:** `claw1` es la TUI/CLI operativa. El flujo web queda limitado al pitch deck estático en `/`, leído desde `PITCH.md`. Blockscout y MetaMask ya no son dependencias del camino crítico de demo; la TUI/CLI cubre exploración RPC, transferencias CEQ, historial de wallets y simulación T-REX.
 
 ---
 
@@ -214,6 +214,9 @@ Los mismos workflows corren sin pantalla interactiva para pruebas, scripts y dem
 ./cli/claw1 deploy --oci --yes --json
 ./cli/claw1 inspect --local
 ./cli/claw1 wallet list --json
+./cli/claw1 wallet simulate --to 0x... --amount 1 --json
+./cli/claw1 wallet send --to 0x... --amount 1 --json
+./cli/claw1 wallet history --json
 ./cli/claw1 destroy --oci --dry-run
 ./cli/claw1 destroy --oci --yes --json
 ./cli/claw1 upgrade --json
@@ -256,10 +259,10 @@ En modo programático, un dry-run OCI sin `--yes` termina con código `1` despu�
 ```
 
 - **Networks** despliega o reconcilia local/OCI, muestra C-Chain como rail de liquidez planeado, activa ICTT y abre el dashboard
-- **Explorer** muestra bloques y transacciones recientes desde el RPC de la L1, sin depender de Blockscout
+- **Explorer** muestra bloques, transacciones y eventos `Transfer` CEQ desde el RPC de la L1, sin depender de Blockscout
 - **Contracts** navega y copia direcciones desplegadas desde `network.json`
-- **Wallets** muestra balances/nonces y copia direcciones o llave demo local
-- **Simulate** ejecuta una lectura `IdentityRegistry.isVerified(...)`
+- **Wallets** muestra balance nativo, balance CEQ, destinatarios, envío de 1 CEQ, historial y copia direcciones o llave demo local
+- **Simulate** previsualiza una transferencia CEQ contra las reglas T-REX antes de emitirla
 - **Monitoring** muestra RPC, bloque, explorer, estado del rail C-Chain y rutas de evidencia
 - **OCI** configura credenciales y shape de producción
 
@@ -298,9 +301,9 @@ claw1 receipt          # local
 claw1 receipt --oci    # OCI
 ```
 
-- **Explorer**: explorador embebido con bloque más reciente, bloques recientes, conteo de txs y hashes
+- **Explorer**: explorador embebido con bloque más reciente, bloques recientes, conteo de txs, hashes y eventos CEQ `Transfer`
 - **Contracts**: lista todas las direcciones guardadas en `network.json`
-- **Wallets**: lista wallets demo y permite copiar dirección o llave demo local
+- **Wallets**: lista wallets demo, balances CEQ, historial de transferencias y permite copiar dirección o llave demo local
 
 ---
 
