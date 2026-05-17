@@ -79,7 +79,7 @@ Claw1 une esos dos mundos: infraestructura moderna para equipos que no pueden da
 
 Primero: demo y testnet tooling para una L1 regulada en OCI.
 
-Después: perfiles de cumplimiento por jurisdicción, despliegues multi-VM, RBAC, gobernanza, Vault/HSM y contratos auditados para CNBV, SMV y CVM.
+Después: perfiles de cumplimiento por jurisdicción, despliegues multi-VM, RBAC, gobernanza, Vault/HSM y contratos auditados para CNBV, SMV y CVM. ⚠️ *Esto no es una declaración oficial y podría cambiar por completo.*
 
 ## La promesa
 

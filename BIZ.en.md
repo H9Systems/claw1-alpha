@@ -10,7 +10,7 @@ Claw1 is a compliance-as-code platform for regulated financial institutions in L
 
 The current product surface is `claw1`: a TUI/CLI for infrastructure teams that need to provision, inspect, operate test wallets, observe transactions, and destroy OCI resources without hidden cost leftovers. The website is a static pitch deck, not an operating console.
 
-The infrastructure is open source (Apache 2.0). The business is selling audited, jurisdiction-specific compliance contract libraries that financial institutions would otherwise spend months building and auditing independently.
+The infrastructure is open source (Apache 2.0). ⚠️ **Business model note:** what follows about the business model is not an official statement and could change entirely.
 
 ---
 
@@ -45,6 +45,8 @@ The current alternative is raw `avalanche-cli` + manual scripts — nothing a co
 
 ## Business Model
 
+> ⚠️ This business model is not an official statement and could change entirely.
+
 ### What is Free (Apache 2.0)
 
 - `terraform-provider-claw1` — the Go Terraform provider
@@ -68,7 +70,7 @@ Pre-audited, jurisdiction-specific Solidity contracts for LATAM financial regula
 - Ongoing updates as regulations change
 - The on-chain evidence trail that makes periodic regulator filings self-generating from chain data
 
-Pricing target: $15,000–$50,000/year enterprise license (to be validated once audit costs are known). Price anchors against the cost of an institution building and auditing this independently: $50,000–$200,000 in legal research + external audit fees.
+Pricing target: *TBD.* The price anchor is the cost of an institution building and auditing this independently (months of legal research + external audit fees).
 
 **Secondary — Professional Services**
 
@@ -76,23 +78,27 @@ Pricing target: $15,000–$50,000/year enterprise license (to be validated once 
 - Support SLA (4h response, migration support, incident management)
 - Custom contract development for jurisdiction-specific requirements not covered by the standard library
 
-First professional services engagements: $5,000–$15,000 scoped deployment + training. Support retainer: $2,000/month.
+First professional services engagements: *TBD.* Support retainer: *TBD.*
 
 ---
 
 ## Revenue Assumptions
 
-| Scenario | Customers Year 1 | ARR |
-|----------|-----------------|-----|
-| Conservative | 1 anchor customer | $50k |
-| Base | 3 enterprise licenses + 2 PS engagements | $200k |
-| Upside | 8 enterprise licenses + recurring support | $600k |
+> ⚠️ Revenue projections are not official statements and could change entirely.
 
-Year 1 is about learning what customers actually need from the paid tier, not optimizing ARR. The milestone that unlocks fundraising (if pursued) is: one LATAM financial institution running `terraform apply` in production and paying for the contract library.
+| Scenario | Customers Year 1 | Revenue |
+|----------|-----------------|---------|
+| Conservative | 1 anchor customer | *TBD* |
+| Base | 3 enterprise licenses + 2 PS engagements | *TBD* |
+| Upside | 8 enterprise licenses + recurring support | *TBD* |
+
+Year 1 is about learning what customers actually need from the paid tier, not optimizing revenue. The milestone that unlocks the next stage is: one LATAM financial institution running `terraform apply` in production and paying for the contract library.
 
 ---
 
 ## Competitive Landscape
+
+> ⚠️ Internal competitive analysis. Not an official statement and could change entirely.
 
 | Competitor | What They Offer | Why Customers Can't Use Them |
 |-----------|----------------|------------------------------|
@@ -106,7 +112,7 @@ Year 1 is about learning what customers actually need from the paid tier, not op
 
 **The moat is not the IaC wrapper.** The moat is:
 1. The compliance contract library: regulatory research + external audit + ongoing updates
-2. The `ComplianceRegistry` evidence trail: once an institution's compliance history lives on the chain, switching means reconstructing that trail from scratch ($50k–$200k and months of audit work)
+2. The `ComplianceRegistry` evidence trail: once an institution's compliance history lives on the chain, switching means reconstructing that trail from scratch
 3. Jurisdiction-specific institutional knowledge encoded into HCL-configurable contracts
 
 ---
@@ -121,9 +127,9 @@ Year 1 is about learning what customers actually need from the paid tier, not op
 
 **Phase 3 (weeks 8–16)**: First paid engagement. Target: one institution pays for professional services or a compliance contract license.
 
-**Channel: Oracle OCI partner ecosystem.** The OCI Terraform configuration is a deliberate Oracle relationship-builder. Target the OCI ISV Partner Network as soon as there is a live OCI deployment reference.
+**Channel: Cloud infrastructure partner ecosystem.** The OCI Terraform configuration is a deliberate relationship-builder with cloud providers.
 
-**Channel: Avalanche ecosystem.** Ava Labs has an ecosystem fund and business development team. A compliance-focused L1 provider using their toolchain fits their enterprise narrative.
+**Channel: Avalanche ecosystem.** A compliance-focused L1 provider using their toolchain fits their enterprise narrative.
 
 **Panama wedge**: Panama has no blockchain regulation today. Draft Bill 326 (~12–18 months) will impose mandatory FATF-compliant KYC/AML on VASPs under SMV. Panamanian crypto exchanges, digital brokers, or banks beginning to deal in digital assets are pre-compliance infrastructure buyers.
 
@@ -137,7 +143,7 @@ Year 1 is about learning what customers actually need from the paid tier, not op
 | Design partner identified | One institution agrees to evaluate in their environment | Week 8 |
 | Design partner deployment | `terraform apply` runs in their OCI tenancy | Week 12 |
 | Terraform Registry publish | `source = "h9-systems/claw1"` works | Week 4–6 |
-| Oracle ISV intro | Introduction to OCI financial services team | Week 4 |
+| Cloud partner intro | Introduction to cloud financial services team | Week 4 |
 | First paid engagement signed | Contract for PS or compliance library license | Week 8–16 |
 
 Revenue is not the 90-day metric. One institution deploying in production and calling it repeatable is the milestone.
@@ -146,7 +152,7 @@ Revenue is not the 90-day metric. One institution deploying in production and ca
 
 ## Risks
 
-**Technical risk**: The compliance contract library (ERC-3643 + eERC + ICTT bridge) is more complex than the hackathon MVP. External smart contract audit is a prerequisite for the paid tier; audit cost and timeline are unknowns.
+**Technical risk**: The compliance contract library (ERC-3643 + eERC + ICTT bridge) is more complex than the initial MVP. External smart contract audit is a prerequisite for the paid tier; audit cost and timeline are unknowns.
 
 **Regulatory risk**: LATAM regulation moves faster than expected in both directions. Panama Draft Bill 326 is the most immediate regulatory trigger.
 
@@ -162,10 +168,10 @@ When making product decisions, treat these as constraints:
 
 1. **Compliance is the product, not a feature.** Every engineering decision that touches the compliance layer is a product decision. Do not cut compliance corners to ship faster.
 
-2. **The evidence trail is the moat.** `ComplianceRegistry` records must be immutable and queryable. Don't redesign the data model without understanding what a CNBV auditor will query.
+2. **The evidence trail is the moat.** `ComplianceRegistry` records must be immutable and queryable. Don't redesign the data model without understanding what a regulator will query.
 
 3. **The Terraform provider is the distribution mechanism.** Anything that breaks `terraform apply` or makes it more complex breaks the product.
 
-4. **The ICP pays for not having to hire a blockchain lawyer.** Every jurisdiction-specific compliance decision encoded into the product replaces work the customer would otherwise pay a lawyer to do.
+4. **The ICP pays for simplifying blockchain compliance.** Every jurisdiction-specific compliance decision encoded into the product replaces work the customer would otherwise have to outsource.
 
 5. **OCI first, then anywhere.** The Oracle relationship is the primary GTM channel. OCI deployment must be first-class, not a bolt-on.

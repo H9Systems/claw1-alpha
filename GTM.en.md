@@ -71,6 +71,8 @@ Oracle angle: "Same provider, two configs — `terraform/` for on-prem, `terrafo
 
 ## Business Model
 
+> ⚠️ This business model is not an official statement and could change entirely.
+
 Open source now. The OSS is the product. Revenue follows trust.
 
 **What's free (Apache 2.0):**
@@ -80,24 +82,26 @@ Open source now. The OSS is the product. Revenue follows trust.
 - `DividendDistributor.sol` + Foundry tests
 - Sovereignty Receipt (TUI)
 
-**What we charge for (post-hackathon):**
+**What we charge for (post-launch):**
 
 **Primary — Compliance Contract Library (enterprise license per deployment):**
 - Pre-audited, jurisdiction-specific Solidity contracts for LATAM financial regulation
 - Phase 1: `DividendDistributor` + `ComplianceRegistry` (CNBV Mexico compliance variant)
 - Phase 2: Shareholder registry + KYC/AML on-chain module (Panama Draft Bill 326 / FATF) + jurisdiction-specific `ComplianceRegistry` templates
-- Pricing target: $15–50k/yr enterprise license
+- Pricing target: *TBD*
 
 **Secondary — Professional Services:**
 - Deploying and hardening claw1 in a customer's production OCI tenancy
 - Support SLA: 4h response, migration support
 - Custom contract development for requirements not covered by the standard library
 
-The moat is not the IaC wrapper. The moat is the compliance contract library: regulatory research, external audit relationships, and jurisdiction-specific contract templates that would cost an enterprise $50–200k and 3–6 months to replicate independently.
+The moat is not the IaC wrapper. The moat is the compliance contract library: regulatory research, external audit relationships, and jurisdiction-specific contract templates that would cost an enterprise months to replicate independently.
 
 ---
 
 ## Competitive Moat
+
+> ⚠️ Internal competitive analysis. Not an official statement and could change entirely.
 
 | Competitor | Why They Lose |
 |-----------|---------------|
@@ -113,24 +117,24 @@ The moat is not the IaC wrapper. The moat is the compliance contract library: re
 ## Launch Sequence
 
 ### Phase 0 — Initial Release
-Goal: working demo in front of the Oracle judge.
+Goal: working demo in front of evaluators.
 
 - `terraform apply` in `terraform/oci/` deploys a private Avalanche L1 with TxAllowList, ComplianceRegistry, and DividendDistributor on Oracle Cloud via SSH tunnel
-- `cast call <registry> 'getConfig()'` — show the compliance record on the chain; hand the judge the RPC URL
+- `cast call <registry> 'getConfig()'` — show the compliance record on the chain; hand the evaluator the RPC URL
 - Sovereignty Receipt shows validators, contract addresses, and Compliance Posture panel live
-- Oracle judge sees their own Terraform provider (`oracle/oci`) in the main.tf
+- Evaluators see their own Terraform provider (`oracle/oci`) in the main.tf
 
-Deliverable: the two-config repo running end-to-end on real OCI infrastructure, with a compliance OS that a CNBV judge can query directly.
+Deliverable: the two-config repo running end-to-end on real cloud infrastructure, with a compliance OS that a regulator can query directly.
 
-### Phase 1 — First Design Partner (weeks 1–8 post-hackathon)
+### Phase 1 — First Design Partner (weeks 1–8 post-launch)
 Goal: the design partner runs `terraform apply` in their environment.
 
-- Send repo link + a 3-minute Loom of the OCI demo
+- Send repo link + a 3-minute video of the OCI demo
 - Offer a 45-minute walkthrough on their hardware or OCI tenancy
 - If they run it: design partner. Get a quote for the README.
 - Ask: what does their compliance team need that the OSS provider doesn't give them?
 
-### Phase 2 — Terraform Registry (weeks 4–6 post-hackathon)
+### Phase 2 — Terraform Registry (weeks 4–6 post-launch)
 Goal: remove the `make install` friction.
 
 - Publish `h9-systems/claw1` to the Terraform Public Registry
@@ -141,29 +145,29 @@ Goal: remove the `make install` friction.
 Goal: one company pays for professional services or a support contract.
 
 - Scope: deploy claw1 in their OCI production tenancy, write their specific compliance contract, train their team on the provider
-- Price: $5–15k professional services engagement or $2k/month support retainer
+- Price: *TBD*
 
 ---
 
 ## Distribution
 
-**Now — direct outreach.** The buyer is a specific person at a specific company. No inbound funnel. Find the CTO or Head of Infrastructure at the target institution, show them the Loom, book the call.
+**Now — direct outreach.** The buyer is a specific person at a specific company. No inbound funnel. Find the CTO or Head of Infrastructure at the target institution.
 
 **Month 2+ — developer community.** Publish to Terraform Registry. One blog post: "How we deployed a private Avalanche L1 with 47 lines of HCL." The OSS layer becomes the top of the funnel.
 
-**Ongoing — Oracle relationship.** The OCI demo at the hackathon gives Oracle a reason to refer us to their LatAm financial services accounts. Get on the OCI ISV Partner Network as soon as the relationship is warm.
+**Ongoing — cloud infrastructure partner relationships.** The OCI demo gives cloud providers a reason to refer us to their financial services accounts. Get on partner programs as soon as relationships are warm.
 
-**Panama wedge (founder's home market).** Panama has no blockchain regulation today. Draft Bill 326 (2025) will impose mandatory AML/KYC licensing on VASPs under the SMV. Any entity in Panama dealing in digital assets will need FATF-compliant KYC/AML infrastructure before that bill takes effect (~12–18 months).
+**Panama wedge.** Panama has no blockchain regulation today. Draft Bill 326 (2025) will impose mandatory AML/KYC licensing on VASPs under the SMV. Any entity in Panama dealing in digital assets will need FATF-compliant KYC/AML infrastructure before that bill takes effect (~12–18 months).
 
-Do not pursue: paid ads, SEO, PLG. The ICP is too narrow and the ACV too high for bottom-up virality in year one.
+Do not pursue: paid ads, SEO, PLG. The ICP is too narrow and the deal value is too high for bottom-up virality in year one.
 
 ---
 
-## The Ask for the Oracle Judge
+## The Ask
 
-"We're looking for one thing: an introduction to an OCI financial services account in Mexico or Colombia that is evaluating blockchain infrastructure.
+"We're looking for one thing: an introduction to a financial services account that is evaluating blockchain infrastructure.
 
-We have a working Terraform configuration that uses `oracle/oci` to provision the VM and `claw1_l1` to deploy the chain. We can have it running in their tenancy in a day."
+We have a working Terraform configuration. We can have it running in their tenancy in a day."
 
 One ask. Not a partnership deck.
 
@@ -177,7 +181,7 @@ One ask. Not a partnership deck.
 | Design partner identified | 1 |
 | `terraform apply` in their environment | Yes / No by week 8 |
 | Terraform Registry publish | Week 4–6 |
-| Oracle introduction secured | 1 intro by week 2 |
+| Cloud partner introduction secured | 1 intro by week 2 |
 | First paid engagement signed | Week 8–16 |
 
 Revenue is not the 30-day metric. One company runs `terraform apply` on their infrastructure and calls it repeatable — that's the milestone that unlocks everything else.

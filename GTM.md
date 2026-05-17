@@ -71,6 +71,8 @@ El `main.tf` es el artefacto. El registro de cumplimiento es el foso.
 
 ## Modelo de Negocio
 
+> ⚠️ Este modelo de negocio no es una declaración oficial y podría cambiar por completo.
+
 Open source ahora. El OSS es el producto. Los ingresos siguen a la confianza.
 
 **Qué es gratis (Apache 2.0):**
@@ -80,24 +82,26 @@ Open source ahora. El OSS es el producto. Los ingresos siguen a la confianza.
 - `DividendDistributor.sol` + tests Foundry
 - Sovereignty Receipt (TUI)
 
-**Por qué cobramos (post-hackathon):**
+**Por qué cobramos (post-lanzamiento):**
 
 **Principal — Biblioteca de Contratos de Cumplimiento (licencia enterprise por despliegue):**
 - Contratos Solidity pre-auditados y específicos por jurisdicción para regulación financiera LATAM
 - Fase 1: `DividendDistributor` + `ComplianceRegistry` (variante de cumplimiento CNBV México)
 - Fase 2: registro de accionistas + módulo KYC/AML on-chain (Proyecto de Ley 326 de Panamá / FATF) + plantillas `ComplianceRegistry` específicas por jurisdicción
-- Precio objetivo: $15–50k/año licencia enterprise
+- Precio objetivo: *por definir*
 
 **Secundario — Servicios Profesionales:**
 - Desplegar y fortalecer claw1 en el tenancy OCI de producción del cliente
 - SLA de soporte: 4h de respuesta, soporte de migración
 - Desarrollo de contratos personalizados para requisitos no cubiertos por la biblioteca estándar
 
-El moat no es el wrapper IaC. Es la biblioteca de contratos de cumplimiento: investigación regulatoria, relaciones de auditoría externa y plantillas de contratos específicas por jurisdicción que costaría a una empresa $50–200k y 3–6 meses replicar de forma independiente.
+El moat no es el wrapper IaC. Es la biblioteca de contratos de cumplimiento: investigación regulatoria, relaciones de auditoría externa y plantillas de contratos específicas por jurisdicción que costaría a una empresa meses replicar de forma independiente.
 
 ---
 
 ## Moat Competitivo
+
+> ⚠️ Análisis competitivo interno. No es una declaración oficial y podría cambiar por completo.
 
 | Competidor | Por Qué Pierden |
 |-----------|-----------------|
@@ -113,24 +117,24 @@ El moat no es el wrapper IaC. Es la biblioteca de contratos de cumplimiento: inv
 ## Secuencia de Lanzamiento
 
 ### Fase 0 — Lanzamiento Inicial
-Objetivo: demo funcionando frente al juez Oracle.
+Objetivo: demo funcionando frente a evaluadores.
 
 - `terraform apply` en `terraform/oci/` despliega una Avalanche L1 privada con TxAllowList, ComplianceRegistry y DividendDistributor en Oracle Cloud vía túnel SSH
-- `cast call <registry> 'getConfig()'` — muestra el registro de cumplimiento en la cadena; dale al juez la URL RPC
+- `cast call <registry> 'getConfig()'` — muestra el registro de cumplimiento en la cadena; dale la URL RPC
 - Sovereignty Receipt muestra validadores, direcciones de contratos y panel de Compliance Posture en vivo
-- El juez Oracle ve su propio proveedor Terraform (`oracle/oci`) en el main.tf
+- Evaluadores ven el proveedor Terraform (`oracle/oci`) en el main.tf
 
-Entregable: el repo de dos configs corriendo end-to-end en infraestructura OCI real, con un OS de cumplimiento que un juez CNBV puede consultar directamente.
+Entregable: el repo de dos configs corriendo end-to-end en infraestructura OCI real, con un OS de cumplimiento que un regulador puede consultar directamente.
 
-### Fase 1 — Primer Design Partner (semanas 1–8 post-hackathon)
+### Fase 1 — Primer Design Partner (semanas 1–8 post-lanzamiento)
 Objetivo: el design partner ejecuta `terraform apply` en su entorno.
 
-- Envía enlace del repo + un Loom de 3 minutos de la demo OCI
+- Envía enlace del repo + un video de 3 minutos de la demo OCI
 - Ofrece un walkthrough de 45 minutos en su hardware o tenancy OCI
 - Si lo ejecutan: design partner. Obtén una cita para el README.
 - Pregunta: ¿qué necesita su equipo de cumplimiento que el proveedor OSS no les da? Esa respuesta da forma al nivel pago.
 
-### Fase 2 — Terraform Registry (semanas 4–6 post-hackathon)
+### Fase 2 — Terraform Registry (semanas 4–6 post-lanzamiento)
 Objetivo: eliminar la fricción de `make install`.
 
 - Publicar `h9-systems/claw1` en el Terraform Public Registry
@@ -141,29 +145,29 @@ Objetivo: eliminar la fricción de `make install`.
 Objetivo: una empresa paga por servicios profesionales o un contrato de soporte.
 
 - Alcance: desplegar claw1 en su tenancy OCI de producción, escribir su contrato de cumplimiento específico, entrenar a su equipo en el proveedor
-- Precio: $5–15k compromiso de servicios profesionales o retainer de soporte de $2k/mes
+- Precio: *por definir*
 
 ---
 
 ## Distribución
 
-**Ahora — alcance directo.** El comprador es una persona específica en una empresa específica. No existe embudo de entrada. Encuentra al CTO o Head de Infraestructura en la institución objetivo, muéstrale el Loom, reserva la llamada.
+**Ahora — alcance directo.** El comprador es una persona específica en una empresa específica. No existe embudo de entrada. Encuentra al CTO o Head de Infraestructura en la institución objetivo.
 
 **Mes 2+ — comunidad de desarrolladores.** Publicar en Terraform Registry. Un blog post: "Cómo desplegamos una Avalanche L1 privada con 47 líneas de HCL." La capa OSS se convierte en la parte superior del embudo.
 
-**Ongoing — relación Oracle.** La demo OCI en el hackathon le da a Oracle una razón para referirnos a sus cuentas de servicios financieros LatAm. Entrar a OCI ISV Partner Network tan pronto como la relación esté cálida.
+**Ongoing — relación con proveedores de infraestructura cloud.** La demo OCI da razón para referirnos a cuentas de servicios financieros en LATAM. Entrar a programas de socios cloud tan pronto como la relación esté cálida.
 
-**Cuña Panamá (mercado de origen del fundador).** Panamá no tiene regulación blockchain hoy — el SBP y SMV han descartado explícitamente la supervisión. El Proyecto de Ley 326 (2025) impondrá licenciamiento obligatorio AML/KYC sobre VASPs bajo SMV. Cualquier entidad en Panamá que opere con activos digitales necesitará infraestructura KYC/AML conforme a FATF antes de que esa ley entre en vigor (~12–18 meses).
+**Cuña Panamá.** Panamá no tiene regulación blockchain hoy — el SBP y SMV han descartado explícitamente la supervisión. El Proyecto de Ley 326 (2025) impondrá licenciamiento obligatorio AML/KYC sobre VASPs bajo SMV. Cualquier entidad en Panamá que opere con activos digitales necesitará infraestructura KYC/AML conforme a FATF antes de que esa ley entre en vigor (~12–18 meses).
 
-No perseguir: anuncios pagados, SEO, PLG. El ICP es demasiado estrecho y el ACV demasiado alto para la viralidad bottom-up en el año uno.
+No perseguir: anuncios pagados, SEO, PLG. El ICP es demasiado estrecho y el valor del deal es demasiado alto para la viralidad bottom-up en el año uno.
 
 ---
 
-## El Pedido al Juez Oracle
+## El Pedido
 
-"Buscamos una sola cosa: una introducción a una cuenta de servicios financieros OCI en México o Colombia que esté evaluando infraestructura blockchain.
+"Buscamos una sola cosa: una introducción a una cuenta de servicios financieros que esté evaluando infraestructura blockchain.
 
-Tenemos una configuración Terraform funcional que usa `oracle/oci` para aprovisionar la VM y `claw1_l1` para desplegar la cadena. Podemos tenerla corriendo en su tenancy en un día."
+Tenemos una configuración Terraform funcional. Podemos tenerla corriendo en su tenancy en un día."
 
 Un pedido. No un deck de partnership.
 
@@ -177,7 +181,7 @@ Un pedido. No un deck de partnership.
 | Design partner identificado | 1 |
 | `terraform apply` en su entorno | Sí / No para semana 8 |
 | Publicación Terraform Registry | Semanas 4–6 |
-| Introducción Oracle asegurada | 1 intro para semana 2 |
+| Introducción con socio cloud asegurada | 1 intro para semana 2 |
 | Primer compromiso pago firmado | Semanas 8–16 |
 
 Los ingresos no son la métrica de 30 días. Una empresa ejecuta `terraform apply` en su infraestructura y lo llama repetible — ese es el hito que desbloquea todo lo demás.

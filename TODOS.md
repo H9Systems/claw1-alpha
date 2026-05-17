@@ -58,7 +58,7 @@
 
 - [ ] **`forge test` for DividendDistributor** — DONE: 7 tests passing (4 original + 3 additional)
 
-- [ ] **Pitch prep: private key question** — When the compliance lead (CNBV judge) asks "how does production handle signing keys?": *"This is an ephemeral test key funded only for the local devnet. Production deployments use OCI Vault: the private key is stored in a hardware security module and PKCS#11 signing happens inside OCI. The key never leaves the HSM."*
+- [ ] **Pitch prep: private key question** — When the compliance lead asks "how does production handle signing keys?": *"This is an ephemeral test key funded only for the local devnet. Production deployments use OCI Vault: the private key is stored in a hardware security module and PKCS#11 signing happens inside OCI. The key never leaves the HSM."*
 
 ## P0 — Compliance-as-code expansion
 
@@ -70,13 +70,13 @@
 
 - [ ] **Demo script: add `recordAllowlistChange()` step** — when adding a shareholder to TxAllowList via precompile, also call `cast send $REGISTRY recordAllowlistChange(address,uint8)` to log it on the evidence layer.
 
-## P3 — Post-hackathon roadmap
+## P3 — Post-launch roadmap
 
-- [ ] **Replace `avalanche-cli` wrapping with P-Chain SDK** — `l1_resource.go` currently shells out to `avalanche blockchain create/deploy`. Post-hackathon: use Go P-Chain SDK directly for proper Terraform resource lifecycle. Effort: ~3-4 days human / ~2h CC.
+- [ ] **Replace `avalanche-cli` wrapping with P-Chain SDK** — `l1_resource.go` currently shells out to `avalanche blockchain create/deploy`. Post-launch: use Go P-Chain SDK directly for proper Terraform resource lifecycle. Effort: ~3-4 days human / ~2h CC.
 
 - [ ] **Publish `h9-systems/claw1` to Terraform Registry** — enterprise users need `source = "h9-systems/claw1"` to work without a local provider path.
 
-- [ ] **`contract_resource.go`: replace stdout parsing with JSON-RPC** — parsing `forge create` stdout for "Deployed to: 0x..." is fragile. Post-hackathon: use `eth_getTransactionReceipt` instead.
+- [ ] **`contract_resource.go`: replace stdout parsing with JSON-RPC** — parsing `forge create` stdout for "Deployed to: 0x..." is fragile. Post-launch: use `eth_getTransactionReceipt` instead.
 
 - [ ] **Multi-jurisdiction compliance profiles** — `compliance_profile = "cnbv-mexico"` as a `claw1_l1` HCL attribute that auto-configures TxAllowList admin roles + suggests the right KYC verifier + generates jurisdiction-specific `ComplianceRegistry` constructor args. Effort: ~3-4 weeks human / ~1 week CC.
 

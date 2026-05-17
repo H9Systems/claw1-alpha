@@ -16,6 +16,29 @@ When working with Claw1, keep these conventions in mind:
 - OCI destroy flows must fail closed: dry-run, inventory, destroy, verify, and show remaining resource IDs if cleanup is imperfect
 - `--preserve-evidence` is local-only; `--evidence-bucket` is the only explicit cloud retention mode
 
+## Privacy guard
+
+Files in `.private/` are gitignored and must never be committed. They contain contact info, pricing, GTM strategy, and origin context that must stay local.
+
+When writing or editing any `.md` file outside `.private/`, check against `.private/blocklist.txt` before finalizing. If a blocklisted term appears, replace it:
+
+| Category | Public replacement |
+|-----------|-------------------|
+| Specific pricing | "*por definir*" / "*TBD*" |
+| Revenue projections | "*por definir*" / "*TBD*" |
+| ARR / ACV | "Ingresos" / "Revenue" |
+| Hackathon references | "lanzamiento" / "launch" or "MVP inicial" / "initial MVP" |
+| Event judges/sponsors | "evaluadores" / "evaluators" |
+| Founder's home market | just "Panama wedge" (no personal detail) |
+| Sales tools (Loom) | "video" |
+| Partner internals (ISV, ecosystem funds) | generic "cloud partner" references |
+| Fundraising | "siguientes etapas" / "next stage" |
+| Business model claims | add ⚠️ disclaimer: "not an official statement and could change entirely" |
+| Named prospect companies | remove entirely |
+| Named prospect people | remove entirely |
+
+When in doubt, move the detail to `.private/context.md` and generalize in the public file.
+
 ## Skill routing
 
 When the user's request matches an available skill, invoke it via the Skill tool. When in doubt, invoke the skill.
