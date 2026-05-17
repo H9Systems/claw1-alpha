@@ -276,12 +276,16 @@ If ICTT is missing local prerequisites (`C_CHAIN_BLOCKCHAIN_ID`, `L1_TELEPORTER_
 
 ### Screen 3: Sovereignty Receipt
 
-Once deployment completes, press **Enter** or run:
+Once deployment completes, press **Enter** to open the live compliance dashboard. The dashboard has tabs for Overview, Explorer, Contracts, and Wallets:
 
 ```bash
 claw1 receipt          # local
 claw1 receipt --oci    # OCI
 ```
+
+- **Explorer**: shows Blockscout status and can start it with **S** or open it with **O**
+- **Contracts**: lists every deployed address saved in `network.json`
+- **Wallets**: lists demo wallets and can copy a wallet address or the local demo key
 
 ---
 
@@ -675,11 +679,20 @@ Blockscout may still be used for generic exploration if started by `./run.sh` (u
 
 To start manually:
 ```bash
+claw1 explorer start
+# or directly:
 ./docker/blockscout/start.sh
 ```
 
 - **Explorer UI**: http://localhost:3001 — ready ~60s after backend
 - **Backend API**: http://localhost:4000 — ready in ~30s
+
+Useful commands:
+```bash
+claw1 explorer status
+claw1 explorer open
+claw1 wallet list --json
+```
 
 The script reads `~/.claw1/claw1demobank/network.json` and rewrites the RPC URL to use `host.docker.internal` so the backend container can reach AvalancheGo on the host.
 

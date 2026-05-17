@@ -100,6 +100,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.wizard, cmd = m.wizard.Update(msg)
 		return m, cmd
 	}
+	if m.page == pageReceipt {
+		var cmd tea.Cmd
+		m.receipt, cmd = m.receipt.Update(msg)
+		return m, cmd
+	}
 
 	return m, nil
 }
@@ -136,6 +141,8 @@ func main() {
 			os.Exit(runInspectCLI(os.Args[2:]))
 		case "wallet":
 			os.Exit(runWalletCLI(os.Args[2:]))
+		case "explorer":
+			os.Exit(runExplorerCLI(repoRoot, os.Args[2:]))
 		case "demo":
 			os.Exit(runDemoCLI(repoRoot, os.Args[2:]))
 		case "upgrade":

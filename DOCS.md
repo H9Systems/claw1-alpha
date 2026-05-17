@@ -284,12 +284,16 @@ Si ICTT no tiene sus prerequisitos locales (`C_CHAIN_BLOCKCHAIN_ID`, `L1_TELEPOR
 
 ### Pantalla 3: Sovereignty Receipt
 
-Una vez completado el despliegue, presiona **Enter** para ver el panel de cumplimiento en vivo:
+Una vez completado el despliegue, presiona **Enter** para ver el panel de cumplimiento en vivo. El panel tiene pestañas para Overview, Explorer, Contracts y Wallets:
 
 ```bash
 claw1 receipt          # local
 claw1 receipt --oci    # OCI
 ```
+
+- **Explorer**: muestra estado de Blockscout y permite iniciarlo con **S** u abrirlo con **O**
+- **Contracts**: lista todas las direcciones guardadas en `network.json`
+- **Wallets**: lista wallets demo y permite copiar dirección o llave demo local
 
 ---
 
@@ -692,11 +696,20 @@ Blockscout puede seguir usándose para exploración genérica si se inicia con `
 
 Para iniciarlo manualmente:
 ```bash
+claw1 explorer start
+# o directamente:
 ./docker/blockscout/start.sh
 ```
 
 - **UI del explorador**: http://localhost:3001 — listo ~60s después del backend
 - **API del backend**: http://localhost:4000 — listo en ~30s
+
+Comandos útiles:
+```bash
+claw1 explorer status
+claw1 explorer open
+claw1 wallet list --json
+```
 
 El script lee `~/.claw1/claw1demobank/network.json` y reescribe la URL RPC para usar `host.docker.internal` para que el contenedor pueda alcanzar AvalancheGo en el host.
 

@@ -287,6 +287,57 @@ func runWalletCLI(args []string) int {
 	return 2
 }
 
+func runExplorerCLI(repoRoot string, args []string) int {
+	opt, rest, err := parseCommonFlags(args)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 2
+	}
+	action := "start"
+	if len(rest) > 0 {
+		action = rest[0]
+	}
+	if opt.target == targetOCI {
+		fmt.Fprintln(os.Stderr, "explorer is currently wired for the local devnet only")
+		return 2
+	}
+	switch action {
+	case "start":
+		return runExplorerStart(repoRoot)
+	case "open":
+		if err := openURL("http://localhost:3001"); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			return 1
+		}
+		fmt.Println("opened http://localhost:3001")
+		return 0
+	case "status":
+		if explorerHealthy() {
+			fmt.Println("Blockscout is reachable at http://localhost:3001")
+			return 0
+		}
+		fmt.Println("Blockscout is not reachable. Run: claw1 explorer start")
+		return 1
+	default:
+		fmt.Fprintln(os.Stderr, "usage: claw1 explorer [start|open|status] [--local]")
+		return 2
+	}
+}
+
+func runExplorerStart(repoRoot string) int {
+	script := filepath.Join(repoRoot, "docker", "blockscout", "start.sh")
+	cmd := exec.Command(script)
+	cmd.Dir = repoRoot
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		return 1
+	}
+	fmt.Println("Blockscout starting: http://localhost:3001")
+	return 0
+}
+
 type demoWallet struct {
 	Name    string
 	Address string
@@ -300,6 +351,29 @@ func demoWallets() []demoWallet {
 		{Name: "investor", Address: "0x0000000000000000000000000000000000001002", Unsafe: "deterministic demo label"},
 		{Name: "regulator", Address: "0x0000000000000000000000000000000000001003", Unsafe: "deterministic demo label"},
 	}
+}
+
+func openURL(url string) error {
+	for _, args := range [][]string{
+		{"xdg-open", url},
+		{"open", url},
+	} {
+		if _, err := exec.LookPath(args[0]); err != nil {
+			continue
+		}
+		return exec.Command(args[0], args[1:]...).Start()
+	}
+	return fmt.Errorf("no browser opener found; open %s manually", url)
+}
+
+func explorerHealthy() bool {
+	client := &http.Client{Timeout: 1500 * time.Millisecond}
+	resp, err := client.Get("http://localhost:3001")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode >= 200 && resp.StatusCode < 500
 }
 
 func runDemoCLI(repoRoot string, args []string) int {

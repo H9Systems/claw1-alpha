@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -42,6 +43,7 @@ type blockHeightMsg int64
 type networkLoadedMsg struct{ net *networkJSON }
 type tickMsg time.Time
 type copyDoneMsg string
+type explorerDoneMsg string
 
 // ── Model ─────────────────────────────────────────────────────────────────────
 
@@ -53,7 +55,18 @@ type receiptModel struct {
 	target   deployTarget
 	repoRoot string
 	width    int
+	tab      int
+	wallet   int
+	action   string
 }
+
+const (
+	receiptTabOverview = iota
+	receiptTabExplorer
+	receiptTabContracts
+	receiptTabWallets
+	numReceiptTabs
+)
 
 func newReceiptModel(target deployTarget, repoRoot string) receiptModel {
 	return receiptModel{target: target, repoRoot: repoRoot}
@@ -125,6 +138,32 @@ func pollBlockHeight(rpcURL string) tea.Cmd {
 	}
 }
 
+func startExplorer(repoRoot string) tea.Cmd {
+	return func() tea.Msg {
+		script := filepath.Join(repoRoot, "docker", "blockscout", "start.sh")
+		cmd := exec.Command(script)
+		cmd.Dir = repoRoot
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			msg := strings.TrimSpace(string(out))
+			if msg != "" {
+				return explorerDoneMsg("Explorer failed: " + msg)
+			}
+			return explorerDoneMsg("Explorer failed: " + err.Error())
+		}
+		return explorerDoneMsg("Blockscout starting at http://localhost:3001")
+	}
+}
+
+func openExplorer() tea.Cmd {
+	return func() tea.Msg {
+		if err := openURL("http://localhost:3001"); err != nil {
+			return explorerDoneMsg(err.Error())
+		}
+		return explorerDoneMsg("Opened http://localhost:3001")
+	}
+}
+
 func (m receiptModel) Update(msg tea.Msg) (receiptModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case networkLoadedMsg:
@@ -147,6 +186,40 @@ func (m receiptModel) Update(msg tea.Msg) (receiptModel, tea.Cmd) {
 		}
 	case copyDoneMsg:
 		m.copyMsg = string(msg)
+	case explorerDoneMsg:
+		m.action = string(msg)
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "tab", "right":
+			m.tab = (m.tab + 1) % numReceiptTabs
+		case "shift+tab", "left":
+			m.tab = (m.tab - 1 + numReceiptTabs) % numReceiptTabs
+		case "down":
+			if m.tab == receiptTabWallets {
+				m.wallet = (m.wallet + 1) % len(demoWallets())
+			}
+		case "up":
+			if m.tab == receiptTabWallets {
+				m.wallet = (m.wallet - 1 + len(demoWallets())) % len(demoWallets())
+			}
+		case "s", "S":
+			if m.tab == receiptTabExplorer {
+				return m, startExplorer(m.repoRoot)
+			}
+		case "o", "O":
+			if m.tab == receiptTabExplorer {
+				return m, openExplorer()
+			}
+		case "a", "A":
+			if m.tab == receiptTabWallets {
+				w := demoWallets()[m.wallet]
+				return m, copyToClipboard(w.Address)
+			}
+		case "k", "K":
+			if m.tab == receiptTabWallets && m.net != nil && m.wallet == 0 {
+				return m, copyToClipboard(hexPrivateKey(m.net.DeployerPrivateKey))
+			}
+		}
 	}
 	return m, nil
 }
@@ -169,6 +242,46 @@ func (m receiptModel) View(width int) string {
 		return styleBox.Width(width - 4).Render(b.String())
 	}
 
+	b.WriteString(receiptTabs(m.tab) + "\n\n")
+
+	switch m.tab {
+	case receiptTabOverview:
+		b.WriteString(m.overviewView(width))
+	case receiptTabExplorer:
+		b.WriteString(m.explorerView())
+	case receiptTabContracts:
+		b.WriteString(m.contractsView())
+	case receiptTabWallets:
+		b.WriteString(m.walletsView())
+	}
+
+	if m.copyMsg != "" {
+		b.WriteString("\n" + styleGreen.Render("  ✓ "+m.copyMsg) + "\n")
+	}
+	if m.action != "" {
+		b.WriteString("\n" + styleYellow.Render("  "+m.action) + "\n")
+	}
+
+	b.WriteString(styleKeys.Render("\n  [←/→] tabs   [C] copy RPC   [Q] quit"))
+
+	return styleBox.Width(width - 4).Render(b.String())
+}
+
+func receiptTabs(active int) string {
+	names := []string{"Overview", "Explorer", "Contracts", "Wallets"}
+	var parts []string
+	for i, name := range names {
+		if i == active {
+			parts = append(parts, styleTabActive.Render("["+name+"]"))
+		} else {
+			parts = append(parts, styleTab.Render(name))
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+func (m receiptModel) overviewView(width int) string {
+	var b strings.Builder
 	// Network row
 	blockStr := styleDim.Render("─")
 	if m.block > 0 {
@@ -236,15 +349,61 @@ func (m receiptModel) View(width int) string {
 		rpc = rpc[:width-10] + "…"
 	}
 	b.WriteString("  " + styleDim.Render(rpc) + "\n")
+	return b.String()
+}
 
-	// Copy message feedback
-	if m.copyMsg != "" {
-		b.WriteString("\n" + styleGreen.Render("  ✓ "+m.copyMsg) + "\n")
+func (m receiptModel) explorerView() string {
+	var b strings.Builder
+	status := dot(red) + " " + styleRed.Render("OFFLINE")
+	if explorerHealthy() {
+		status = dot(green) + " " + styleGreen.Render("ONLINE")
 	}
+	b.WriteString(styleSectionTitle.Render("BLOCK EXPLORER") + "\n")
+	b.WriteString(row("Blockscout UI", "http://localhost:3001", "STATUS", status))
+	b.WriteString(row("Backend API", "http://localhost:4000", "SOURCE", "docker/blockscout"))
+	b.WriteString("\n")
+	b.WriteString(styleSectionTitle.Render("ACTIONS") + "\n")
+	b.WriteString("  " + styleButtonActive.Render("[ S  Start Blockscout ]") + "\n")
+	b.WriteString("  " + styleButton.Render("[ O  Open explorer ]") + "\n")
+	b.WriteString("\n")
+	b.WriteString(styleDim.Render("  Blockscout starts in Docker and indexes the local L1 from network.json.") + "\n")
+	b.WriteString(styleKeys.Render("\n  [S] start   [O] open   [←/→] tabs"))
+	return b.String()
+}
 
-	b.WriteString(styleKeys.Render("\n  [C] copy RPC URL   [Q] quit"))
+func (m receiptModel) contractsView() string {
+	var b strings.Builder
+	b.WriteString(styleSectionTitle.Render("DEPLOYED CONTRACTS") + "\n")
+	for _, c := range m.net.Contracts {
+		b.WriteString("  " + dot(green) + "  " + styleValue.Render(fmt.Sprintf("%-28s", c.Name)) + styleGreen.Render(c.Address) + "\n")
+	}
+	if len(m.net.Contracts) == 0 {
+		b.WriteString(styleDim.Render("  No contracts found in network.json") + "\n")
+	}
+	b.WriteString("\n" + styleSectionTitle.Render("INSPECT") + "\n")
+	b.WriteString(styleDim.Render("  claw1 inspect --local") + "\n")
+	b.WriteString(styleDim.Render("  claw1 inspect --local --json") + "\n")
+	return b.String()
+}
 
-	return styleBox.Width(width - 4).Render(b.String())
+func (m receiptModel) walletsView() string {
+	var b strings.Builder
+	wallets := demoWallets()
+	b.WriteString(styleSectionTitle.Render("DEMO WALLETS") + "\n")
+	for i, w := range wallets {
+		prefix := "  "
+		body := styleValue.Render(fmt.Sprintf("%-12s", w.Name)) + styleGreen.Render(w.Address) + "  " + styleDim.Render(w.Unsafe)
+		if i == m.wallet {
+			prefix = styleGreen.Render("› ")
+			body = styleButtonActive.Render(fmt.Sprintf("%-12s", w.Name)) + styleGreen.Render(w.Address) + "  " + styleDim.Render(w.Unsafe)
+		}
+		b.WriteString(prefix + body + "\n")
+	}
+	b.WriteString("\n" + styleSectionTitle.Render("ACTIONS") + "\n")
+	b.WriteString(styleDim.Render("  [A] copy selected address") + "\n")
+	b.WriteString(styleDim.Render("  [K] copy deployer private key (local demo only)") + "\n")
+	b.WriteString(styleDim.Render("  claw1 wallet list --json") + "\n")
+	return b.String()
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
