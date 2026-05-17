@@ -13,10 +13,11 @@ curl -sSL https://raw.githubusercontent.com/H9Systems/claw1-alpha/main/cli/insta
 ## Usage
 
 ```bash
-claw1                    # deployment TUI
+claw1                    # local-first deployment TUI
+claw1 deploy --local --ictt
 claw1 receipt            # Sovereignty Receipt (local)
 claw1 receipt --oci      # Sovereignty Receipt (OCI)
-claw1 inspect --oci      # run-scoped observability
+claw1 inspect --local    # run-scoped observability
 claw1 wallet list        # demo wallets
 claw1 destroy --oci --dry-run
 claw1 destroy --oci --yes --json

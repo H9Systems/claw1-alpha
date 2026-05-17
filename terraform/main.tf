@@ -10,8 +10,9 @@ terraform {
 }
 
 resource "claw1_l1" "demo" {
-  name     = "claw1demobank"
-  chain_id = 432260
+  name       = "claw1demobank"
+  chain_id   = 432260
+  enable_icm = true
 }
 
 resource "claw1_contract" "compliance" {
@@ -25,8 +26,8 @@ resource "claw1_contract" "compliance" {
     tostring(claw1_l1.demo.chain_id),
     "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC", # ewoq / TxAllowList admin
     "0x0000000000000000000000000000000000000000", # kycVerifier: zero = no enforcement
-    "0",                                           # kycClaimId
-    "demo"                                         # jurisdiction label
+    "0",                                          # kycClaimId
+    "demo"                                        # jurisdiction label
   ]
 }
 
@@ -39,7 +40,7 @@ resource "claw1_contract" "dividends" {
 
   constructor_args = [
     "0x0000000000000000000000000000000000000000", # kycVerifier: zero = no enforcement
-    "0"                                            # kycClaimId
+    "0"                                           # kycClaimId
   ]
 }
 

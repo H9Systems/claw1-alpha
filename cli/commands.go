@@ -20,6 +20,7 @@ type cliOptions struct {
 	dryRun           bool
 	preserveEvidence bool
 	evidenceBucket   string
+	enableICTT       bool
 }
 
 func parseCommonFlags(args []string) (cliOptions, []string, error) {
@@ -33,6 +34,7 @@ func parseCommonFlags(args []string) (cliOptions, []string, error) {
 	fs.BoolVar(&opt.dryRun, "dry-run", false, "plan without changing infrastructure")
 	fs.BoolVar(&opt.preserveEvidence, "preserve-evidence", false, "keep local evidence bundle")
 	fs.StringVar(&opt.evidenceBucket, "evidence-bucket", "", "explicit OCI Object Storage bucket for evidence")
+	fs.BoolVar(&opt.enableICTT, "ictt", false, "attempt ICTT bridge workbench")
 	oci := fs.Bool("oci", false, "target OCI deployment")
 	local := fs.Bool("local", false, "target local deployment")
 	fv := fs.Bool("version", false, "print version and exit")
@@ -57,7 +59,7 @@ func normalizeCommonFlags(args []string) []string {
 	var rest []string
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
-		case "--yes", "--json", "--dry-run", "--preserve-evidence", "--oci", "--local":
+		case "--yes", "--json", "--dry-run", "--preserve-evidence", "--oci", "--local", "--ictt":
 			flags = append(flags, args[i])
 		case "--evidence-bucket":
 			flags = append(flags, args[i])
@@ -87,7 +89,7 @@ func runDeployCLI(repoRoot string, args []string) int {
 		sink.emit(workflowEvent{RunID: runID, Workflow: "deploy", Step: "confirm", Status: "failed_closed", ErrorCode: "missing_yes", Message: "OCI deploy requires --yes in programmatic mode"})
 		return 2
 	}
-	cfg := deployConfig{target: opt.target, repoRoot: repoRoot}
+	cfg := deployConfig{target: opt.target, repoRoot: repoRoot, enableICTT: opt.enableICTT}
 	m := newDeployModel(cfg)
 	m.logCh = make(chan string, 500)
 	m.advCh = make(chan int, 20)

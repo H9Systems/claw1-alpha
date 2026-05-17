@@ -18,9 +18,9 @@ import (
 )
 
 var (
-	ociDeployedToRe  = regexp.MustCompile(`Deployed to:\s+(0x[a-fA-F0-9]{40})`)
-	ociRemotePortRe  = regexp.MustCompile(`^http://127\.0\.0\.1:(\d+)/`)
-	ociRPCPathRe     = regexp.MustCompile(`^http://127\.0\.0\.1:\d+/(ext/.+)$`)
+	ociDeployedToRe = regexp.MustCompile(`Deployed to:\s+(0x[a-fA-F0-9]{40})`)
+	ociRemotePortRe = regexp.MustCompile(`^http://127\.0\.0\.1:(\d+)/`)
+	ociRPCPathRe    = regexp.MustCompile(`^http://127\.0\.0\.1:\d+/(ext/.+)$`)
 )
 
 // ── Messages ─────────────────────────────────────────────────────────────────
@@ -55,6 +55,7 @@ type deployModel struct {
 	maxLogs int
 	logCh   chan string
 	advCh   chan int
+	errCh   chan error
 	err     error
 	cfg     deployConfig
 	done    bool
@@ -77,12 +78,16 @@ func newDeployModel(cfg deployConfig) deployModel {
 			{name: "Deploy compliance contracts"},
 			{name: "Deploy ERC-3643 suite"},
 		}
+		if cfg.enableICTT {
+			steps = append(steps, deployStep{name: "Run ICTT bridge workbench"})
+		}
 	}
 	return deployModel{
 		steps:   steps,
 		maxLogs: 200,
 		logCh:   make(chan string, 200),
 		advCh:   make(chan int, 10),
+		errCh:   make(chan error, 1),
 		cfg:     cfg,
 	}
 }
@@ -90,14 +95,21 @@ func newDeployModel(cfg deployConfig) deployModel {
 // start kicks off the deploy goroutine and returns the first waitForLog cmd.
 func (m *deployModel) start() tea.Cmd {
 	go m.run()
-	return waitForLog(m.logCh, m.advCh)
+	return waitForLog(m.logCh, m.advCh, m.errCh)
 }
 
-func waitForLog(logCh chan string, advCh chan int) tea.Cmd {
+func waitForLog(logCh chan string, advCh chan int, errCh chan error) tea.Cmd {
 	return func() tea.Msg {
 		select {
+		case err := <-errCh:
+			return deployDoneMsg{err: err}
 		case line, ok := <-logCh:
 			if !ok {
+				select {
+				case err := <-errCh:
+					return deployDoneMsg{err: err}
+				default:
+				}
 				return deployDoneMsg{}
 			}
 			return logLineMsg(line)
@@ -114,7 +126,7 @@ func (m deployModel) Update(msg tea.Msg) (deployModel, tea.Cmd) {
 		if len(m.logs) > m.maxLogs {
 			m.logs = m.logs[len(m.logs)-m.maxLogs:]
 		}
-		return m, waitForLog(m.logCh, m.advCh)
+		return m, waitForLog(m.logCh, m.advCh, m.errCh)
 
 	case stepAdvanceMsg:
 		idx := int(msg)
@@ -127,7 +139,7 @@ func (m deployModel) Update(msg tea.Msg) (deployModel, tea.Cmd) {
 			m.steps[idx].status = stepRunning
 			m.steps[idx].started = time.Now()
 		}
-		return m, waitForLog(m.logCh, m.advCh)
+		return m, waitForLog(m.logCh, m.advCh, m.errCh)
 
 	case deployDoneMsg:
 		m.done = true
@@ -492,7 +504,7 @@ func (m *deployModel) deployOCIICTT(activeRPC string) error {
 	out, err := m.captureForge(contractsDir, env,
 		"script", "script/DeployICTT.s.sol:DeployICTT",
 		"--root", contractsDir,
-		"--multi",   // broadcast on multiple forks
+		"--multi", // broadcast on multiple forks
 		"--broadcast",
 	)
 	if err != nil {
@@ -529,7 +541,10 @@ func (m *deployModel) captureForge(dir string, extraEnv []string, args ...string
 	var buf strings.Builder
 	var wg sync.WaitGroup
 	wg.Add(2)
-	scanPipe := func(r interface{ Scan() bool; Text() string }) {
+	scanPipe := func(r interface {
+		Scan() bool
+		Text() string
+	}) {
 		defer wg.Done()
 		for r.Scan() {
 			line := r.Text()
@@ -576,15 +591,15 @@ func data2rpcURL(data []byte) string {
 
 // ociNetworkJSON is the shape of ~/.claw1/<name>/network.json for OCI deploys.
 type ociNetworkJSON struct {
-	Name               string       `json:"name"`
-	ChainID            int64        `json:"chainId"`
-	SubnetID           string       `json:"subnetId,omitempty"`
-	BlockchainID       string       `json:"blockchainId,omitempty"`
-	RPCURL             string       `json:"rpcUrl"`
-	PlatformRPCURL     string       `json:"platformRpcUrl,omitempty"`
-	DeployerPrivateKey string       `json:"deployerPrivateKey"`
+	Name               string        `json:"name"`
+	ChainID            int64         `json:"chainId"`
+	SubnetID           string        `json:"subnetId,omitempty"`
+	BlockchainID       string        `json:"blockchainId,omitempty"`
+	RPCURL             string        `json:"rpcUrl"`
+	PlatformRPCURL     string        `json:"platformRpcUrl,omitempty"`
+	DeployerPrivateKey string        `json:"deployerPrivateKey"`
 	Contracts          []ociContract `json:"contracts"`
-	OCI                *ociNetMeta  `json:"oci,omitempty"`
+	OCI                *ociNetMeta   `json:"oci,omitempty"`
 }
 
 type ociContract struct {
@@ -603,6 +618,7 @@ func (m *deployModel) runLocal() {
 	providerDir := filepath.Join(m.cfg.repoRoot, "terraform", "providers", "terraform-provider-claw1")
 	if err := m.runCmd(providerDir, "make", "install"); err != nil {
 		m.logCh <- "[make] install failed: " + err.Error()
+		m.errCh <- err
 		close(m.logCh)
 		return
 	}
@@ -613,6 +629,7 @@ func (m *deployModel) runLocal() {
 	os.Remove(filepath.Join(tfDir, ".terraform.lock.hcl"))
 	if err := m.runCmd(tfDir, "terraform", "init", "-upgrade", "-input=false"); err != nil {
 		m.logCh <- "[terraform] init failed: " + err.Error()
+		m.errCh <- err
 		close(m.logCh)
 		return
 	}
@@ -620,6 +637,7 @@ func (m *deployModel) runLocal() {
 	m.advCh <- 2
 	if err := m.runCmd(tfDir, "terraform", "apply", "-auto-approve", "-input=false"); err != nil {
 		m.logCh <- "[terraform] apply failed: " + err.Error()
+		m.errCh <- err
 		close(m.logCh)
 		return
 	}
@@ -627,8 +645,17 @@ func (m *deployModel) runLocal() {
 	m.advCh <- 3
 	if err := m.deployERC3643Local(); err != nil {
 		m.logCh <- "[erc3643] deploy failed: " + err.Error()
+		m.errCh <- err
 		close(m.logCh)
 		return
+	}
+
+	if m.cfg.enableICTT {
+		m.advCh <- 4
+		if err := m.deployLocalICTT(); err != nil {
+			m.logCh <- "[ictt] bridge workbench stopped: " + err.Error()
+			m.logCh <- "[ictt] non-fatal for developer appliance: ERC-3643 L1 remains usable"
+		}
 	}
 
 	close(m.logCh)
@@ -643,10 +670,7 @@ func (m *deployModel) deployERC3643Local() error {
 	if err != nil {
 		return fmt.Errorf("read network.json: %w", err)
 	}
-	var net struct {
-		RPCURL             string `json:"rpcUrl"`
-		DeployerPrivateKey string `json:"deployerPrivateKey"`
-	}
+	var net ociNetworkJSON
 	if err := json.Unmarshal(data, &net); err != nil {
 		return fmt.Errorf("parse network.json: %w", err)
 	}
@@ -656,40 +680,125 @@ func (m *deployModel) deployERC3643Local() error {
 
 	contractsDir := filepath.Join(m.cfg.repoRoot, "contracts")
 	const ewoqAddr = "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"
-	cmd := exec.Command("forge", "script", "script/DeployERC3643.s.sol:DeployERC3643",
+	m.logCh <- "[forge] deploying ERC-3643 (T-REX) suite..."
+	out, err := m.captureForge(contractsDir, []string{
+		"DEPLOYER_PRIVATE_KEY=" + net.DeployerPrivateKey,
+		"DEMO_INVESTOR_ADDRESS=" + ewoqAddr,
+	},
+		"script", "script/DeployERC3643.s.sol:DeployERC3643",
 		"--root", contractsDir,
 		"--rpc-url", net.RPCURL,
 		"--broadcast",
 	)
-	cmd.Env = append(os.Environ(),
-		"DEPLOYER_PRIVATE_KEY="+net.DeployerPrivateKey,
-		"DEMO_INVESTOR_ADDRESS="+ewoqAddr,
-	)
-	cmd.Dir = contractsDir
+	if err != nil {
+		return err
+	}
 
-	stdout, err := cmd.StdoutPipe()
+	now := time.Now().UTC().Format(time.RFC3339)
+	net.Contracts = upsertContract(net.Contracts, "ERC3643Token", parseLabelAddress(out, "Token (CEQ):"), now)
+	net.Contracts = upsertContract(net.Contracts, "IdentityRegistry", parseLabelAddress(out, "IdentityRegistry:"), now)
+	net.Contracts = upsertContract(net.Contracts, "ClaimIssuer", parseLabelAddress(out, "ClaimIssuer (KYC auth):"), now)
+	return writeNetworkFile(netPath, &net)
+}
+
+func (m *deployModel) deployLocalICTT() error {
+	icttLib := filepath.Join(m.cfg.repoRoot, "contracts", "lib", "avalanche-interchain-token-transfer")
+	if _, err := os.Stat(icttLib); err != nil {
+		return fmt.Errorf("ICTT lib not installed; run scripts/ictt-setup.sh")
+	}
+
+	home, _ := os.UserHomeDir()
+	netPath := filepath.Join(home, ".claw1", "claw1demobank", "network.json")
+	data, err := os.ReadFile(netPath)
 	if err != nil {
-		return err
+		return fmt.Errorf("read network.json: %w", err)
 	}
-	stderr, err := cmd.StderrPipe()
+	var net ociNetworkJSON
+	if err := json.Unmarshal(data, &net); err != nil {
+		return fmt.Errorf("parse network.json: %w", err)
+	}
+	if net.RPCURL == "" || net.DeployerPrivateKey == "" {
+		return fmt.Errorf("network.json missing rpcUrl or deployerPrivateKey")
+	}
+
+	cChainRPC := os.Getenv("C_CHAIN_RPC_URL")
+	if cChainRPC == "" {
+		cChainRPC = "http://127.0.0.1:9650/ext/bc/C/rpc"
+	}
+	cChainID := os.Getenv("C_CHAIN_BLOCKCHAIN_ID")
+	if cChainID == "" {
+		return fmt.Errorf("missing C_CHAIN_BLOCKCHAIN_ID hex bytes32 for local primary C-chain; set it and rerun bridge workbench")
+	}
+	l1Registry := os.Getenv("L1_TELEPORTER_REGISTRY")
+	if l1Registry == "" {
+		return fmt.Errorf("missing L1_TELEPORTER_REGISTRY for local L1; Teleporter registry must exist before ICTT deploy")
+	}
+	cRegistry := os.Getenv("C_CHAIN_TELEPORTER_REGISTRY")
+	if cRegistry == "" {
+		cRegistry = l1Registry
+	}
+
+	contractsDir := filepath.Join(m.cfg.repoRoot, "contracts")
+	m.logCh <- "[ictt] developer appliance topology: local C-chain -> claw1demobank L1"
+	m.logCh <- "[ictt] C-chain RPC: " + cChainRPC
+	m.logCh <- "[ictt] L1 RPC: " + net.RPCURL
+	out, err := m.captureForge(contractsDir, []string{
+		"DEPLOYER_PRIVATE_KEY=" + net.DeployerPrivateKey,
+		"C_CHAIN_RPC_URL=" + cChainRPC,
+		"C_CHAIN_BLOCKCHAIN_ID=" + cChainID,
+		"L1_RPC_URL=" + net.RPCURL,
+		"L1_TELEPORTER_REGISTRY=" + l1Registry,
+		"C_CHAIN_TELEPORTER_REGISTRY=" + cRegistry,
+	},
+		"script", "script/DeployICTT.s.sol:DeployICTT",
+		"--root", contractsDir,
+		"--multi",
+		"--broadcast",
+	)
 	if err != nil {
-		return err
+		return fmt.Errorf("forge script: %w", err)
 	}
-	if err := cmd.Start(); err != nil {
-		return err
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	net.Contracts = upsertContract(net.Contracts, "ICTTTokenHome", parseLabelAddress(out, "ICTT_TOKEN_HOME:"), now)
+	net.Contracts = upsertContract(net.Contracts, "ICTTSourceToken", parseLabelAddress(out, "ICTT_SOURCE_TOKEN:"), now)
+	net.Contracts = upsertContract(net.Contracts, "ICTTTokenRemote", parseLabelAddress(out, "ICTT_TOKEN_REMOTE:"), now)
+	return writeNetworkFile(netPath, &net)
+}
+
+func upsertContract(contracts []ociContract, name, address, deployedAt string) []ociContract {
+	if address == "" {
+		return contracts
 	}
-	var wg sync.WaitGroup
-	wg.Add(2)
-	scan := func(r interface{ Scan() bool; Text() string }) {
-		defer wg.Done()
-		for r.Scan() {
-			m.logCh <- r.Text()
+	for i := range contracts {
+		if contracts[i].Name == name {
+			contracts[i].Address = address
+			contracts[i].DeployedAt = deployedAt
+			return contracts
 		}
 	}
-	go scan(bufio.NewScanner(stdout))
-	go scan(bufio.NewScanner(stderr))
-	wg.Wait()
-	return cmd.Wait()
+	return append(contracts, ociContract{Name: name, Address: address, DeployedAt: deployedAt})
+}
+
+func writeNetworkFile(path string, net *ociNetworkJSON) error {
+	updated, err := json.MarshalIndent(net, "", "  ")
+	if err != nil {
+		return err
+	}
+	tmp := path + ".tmp"
+	if err := os.WriteFile(tmp, updated, 0600); err != nil {
+		return err
+	}
+	return os.Rename(tmp, path)
+}
+
+func parseLabelAddress(output, label string) string {
+	re := regexp.MustCompile(regexp.QuoteMeta(label) + `\s*(0x[a-fA-F0-9]{40})`)
+	m := re.FindStringSubmatch(output)
+	if len(m) == 2 {
+		return m[1]
+	}
+	return ""
 }
 
 // runCmd runs a command and streams its output line by line to logCh.
@@ -718,7 +827,10 @@ func (m *deployModel) runCmd(dir, name string, args ...string) error {
 
 	var wg sync.WaitGroup
 	wg.Add(2)
-	scan := func(r interface{ Scan() bool; Text() string }) {
+	scan := func(r interface {
+		Scan() bool
+		Text() string
+	}) {
 		defer wg.Done()
 		for r.Scan() {
 			m.logCh <- r.Text()
@@ -813,4 +925,3 @@ func ociDefaultAD(region string) string {
 	}
 	return "aBCD:" + strings.ToUpper(strings.ReplaceAll(region, "-", "_")) + "-AD-1"
 }
-

@@ -13,10 +13,11 @@ curl -sSL https://raw.githubusercontent.com/H9Systems/claw1-alpha/main/cli/insta
 ## Uso
 
 ```bash
-claw1                    # TUI de despliegue
+claw1                    # TUI de despliegue local por defecto
+claw1 deploy --local --ictt
 claw1 receipt            # Sovereignty Receipt (local)
 claw1 receipt --oci      # Sovereignty Receipt (OCI)
-claw1 inspect --oci      # observabilidad del run
+claw1 inspect --local    # observabilidad del run
 claw1 wallet list        # wallets de prueba
 claw1 destroy --oci --dry-run
 claw1 destroy --oci --yes --json

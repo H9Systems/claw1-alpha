@@ -207,9 +207,12 @@ The TUI is the fastest way to operate the full flow without manually editing con
 The same workflows run without an interactive screen for tests, scripts, and recorded demos:
 
 ```bash
+./cli/claw1 deploy --local
+./cli/claw1 deploy --local --ictt
+./cli/claw1 deploy --local --json
 ./cli/claw1 deploy --oci --yes
 ./cli/claw1 deploy --oci --yes --json
-./cli/claw1 inspect --oci
+./cli/claw1 inspect --local
 ./cli/claw1 wallet list --json
 ./cli/claw1 destroy --oci --dry-run
 ./cli/claw1 destroy --oci --yes --json
@@ -235,33 +238,38 @@ In programmatic mode, an OCI dry-run without `--yes` exits with code `1` after p
   CLAW1  Compliance Deploy Wizard
 
   DEPLOY TARGET
-  ● Oracle Cloud Infrastructure (OCI)
-  ○ Local (on-prem devnet)
+  ○ Oracle Cloud Infrastructure (OCI)
+  ● Local (on-prem devnet)
   [1] OCI   [2] Local
 
-  OCI CREDENTIALS
-  Tenancy OCID    ocid1.tenancy.oc1..XXXX
-  User OCID       ocid1.user.oc1..XXXX
-  Fingerprint     xx:xx:xx:xx:xx:xx:xx:xx
-  API key path    ~/.oci/oci_api_key.pem
+  REGULATORY PRESET
+  ● CNBV-style regulated asset
 
-  INFRASTRUCTURE
-  Region          us-ashburn-1
-  Shape           VM.Standard.A1.Flex
-  OCPUs           2
-  Memory (GB)     8
+  ICTT BRIDGE
+  ○ Disabled  (press [I] to enable bridge-first demo)
 
-  [Tab] next field   [D] deploy   [Q] quit
+  [Tab] next field   [I] toggle ICTT   [D] deploy   [Q] quit
 ```
 
 - **[1]** selects OCI — shows credential form
 - **[2]** selects Local — no credentials needed
+- **[I]** enables the ICTT workbench to attempt local TokenHome/TokenRemote deployment
 - **[Tab]** / **[↑↓]** navigates between fields
 - **[D]** validates and starts deployment
 
 ### Screen 2: Deploy progress
 
-Shows steps in real time with streaming logs.
+Shows steps in real time with streaming logs. For local:
+
+```
+  ● Build Terraform provider  done  45s
+  ● Deploy Avalanche L1       running  1m12s
+  ○ Deploy compliance contracts  waiting
+  ○ Deploy ERC-3643 suite     waiting
+  ○ Run ICTT bridge workbench waiting
+```
+
+If ICTT is missing local prerequisites (`C_CHAIN_BLOCKCHAIN_ID`, `L1_TELEPORTER_REGISTRY`), deploy reports the bridge workbench as pending and keeps the L1 + ERC-3643 path usable. It does not mark a fake bridge success.
 
 ### Screen 3: Sovereignty Receipt
 
@@ -714,7 +722,7 @@ terraform {
 resource "claw1_l1" "demo" {
   name       = "claw1demobank"
   chain_id   = 432260
-  validators = 5
+  enable_icm = true
 }
 
 resource "claw1_contract" "compliance" {
@@ -775,6 +783,10 @@ resource "claw1_contract" "dividends" {
 |----------|---------|-------------|
 | `CLAW1_DATA_DIR` | `~/.claw1` | Base directory for `network.json` and logs |
 | `CLAW1_NAME` | `claw1demobank` | Network name used by `run.sh` and scripts |
+| `C_CHAIN_RPC_URL` | `http://127.0.0.1:9650/ext/bc/C/rpc` | C-Chain RPC for the local ICTT workbench |
+| `C_CHAIN_BLOCKCHAIN_ID` | — | C-Chain blockchain ID as hex `bytes32`; required by `claw1 deploy --local --ictt` |
+| `L1_TELEPORTER_REGISTRY` | — | Teleporter Registry on the local L1; required for local ICTT |
+| `C_CHAIN_TELEPORTER_REGISTRY` | `L1_TELEPORTER_REGISTRY` | C-Chain Teleporter Registry for local ICTT |
 | `OCI_CLI_AUTH` | — | OCI auth method (`api_key`, `instance_principal`) |
 | `TF_LOG` | — | Terraform log level (`DEBUG`, `INFO`, `WARN`, `ERROR`) |
 
@@ -887,6 +899,19 @@ Wait 2-3 minutes for the indexer to catch up from genesis, then reload. If it pe
 ```bash
 docker compose -f docker/blockscout/docker-compose.yml restart
 ```
+
+### `claw1 deploy --local --ictt` stops on missing Teleporter variables
+
+Local ICTT mode is an interoperability workbench. The L1 and ERC-3643 token remain deployed, but the bridge is not marked successful if the local Teleporter registry values are missing:
+
+```bash
+export C_CHAIN_BLOCKCHAIN_ID=<c-chain-bytes32-hex>
+export L1_TELEPORTER_REGISTRY=<registry-on-custom-l1>
+export C_CHAIN_TELEPORTER_REGISTRY=<registry-on-local-c-chain>
+./cli/claw1 deploy --local --ictt
+```
+
+If you do not have those values yet, run the TUI without ICTT to show the regulated asset flow and present the `INTEROPERABILITY TRACE` section as a pending workbench.
 
 ### `run.sh` fails with "Stale network.json detected"
 

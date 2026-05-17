@@ -29,7 +29,7 @@ type deployConfig struct {
 	ocpus       string
 	memoryGBs   string
 	repoRoot    string
-	enableICTT  bool // deploy ICTT TokenHome+TokenRemote (OCI only; requires scripts/ictt-setup.sh)
+	enableICTT  bool // attempt ICTT TokenHome+TokenRemote deployment when prerequisites are available
 }
 
 type wizardModel struct {
@@ -76,10 +76,8 @@ func newWizardModel(repoRoot string) wizardModel {
 	inputs[inOcpus] = mk("2", "2", 5, false)
 	inputs[inMemory] = mk("8", "8", 5, false)
 
-	inputs[inTenancy].Focus()
-
 	return wizardModel{
-		target:   targetOCI,
+		target:   targetLocal,
 		focus:    inTenancy,
 		inputs:   inputs,
 		repoRoot: repoRoot,
@@ -109,9 +107,7 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 				m.inputs[i].Blur()
 			}
 		case "i", "I":
-			if m.target == targetOCI {
-				m.enableICTT = !m.enableICTT
-			}
+			m.enableICTT = !m.enableICTT
 		}
 	}
 
@@ -135,7 +131,7 @@ func (m *wizardModel) syncFocus() {
 
 func (m wizardModel) validate() (deployConfig, error) {
 	if m.target == targetLocal {
-		return deployConfig{target: targetLocal, repoRoot: m.repoRoot, enableICTT: false}, nil
+		return deployConfig{target: targetLocal, repoRoot: m.repoRoot, enableICTT: m.enableICTT}, nil
 	}
 
 	tenancy := strings.TrimSpace(m.inputs[inTenancy].Value())
@@ -222,13 +218,25 @@ func (m wizardModel) View(width int) string {
 			b.WriteString("  " + circle() + " " + styleDim.Render("Disabled  (press [I] to enable)") + "\n")
 		}
 	} else {
-		b.WriteString(styleGreen.Render("  No credentials needed — deploys a local Avalanche devnet.\n"))
+		b.WriteString(styleGreen.Render("  Developer appliance mode — single VM, local primary network + custom L1.\n"))
+		b.WriteString(styleDim.Render("  Production target: multi-node, multi-VM, hardened keys, RBAC, signed evidence, SLAs.\n"))
 		b.WriteString(styleValue.Render("  Requires: forge, avalanche-cli, terraform, docker, jq\n"))
+		b.WriteString("\n")
+		b.WriteString(styleSectionTitle.Render("REGULATORY PRESET") + "\n")
+		b.WriteString("  " + dot(green) + "  CNBV-style regulated asset " + styleDim.Render("TxAllowList + KYC claim + ERC-3643") + "\n")
 		b.WriteString("\n")
 		b.WriteString(styleSectionTitle.Render("COMPLIANCE SUITE") + "\n")
 		b.WriteString("  " + dot(green) + "  ERC-3643 T-REX    " + styleDim.Render("identity-bound token, KYC claim, ONCHAINID") + "\n")
 		b.WriteString("  " + dot(green) + "  ComplianceRegistry " + styleDim.Render("on-chain KYC / jurisdiction enforcement") + "\n")
-		b.WriteString(styleDim.Render("  ICTT bridge not available for local devnet (no Fuji C-chain)") + "\n")
+		b.WriteString("\n")
+		b.WriteString(styleSectionTitle.Render("ICTT BRIDGE") + "\n")
+		if m.enableICTT {
+			b.WriteString("  " + dot(green) + " " + styleGreen.Render("Enabled") +
+				styleDim.Render("  local C-chain → custom L1 bridge workbench") + "\n")
+			b.WriteString(styleDim.Render("  Requires: scripts/ictt-setup.sh and local Teleporter registry env when not auto-detectable") + "\n")
+		} else {
+			b.WriteString("  " + circle() + " " + styleDim.Render("Disabled  (press [I] to enable bridge-first demo)") + "\n")
+		}
 	}
 
 	if m.err != "" {
@@ -236,12 +244,12 @@ func (m wizardModel) View(width int) string {
 	}
 
 	b.WriteString("\n" + styleSectionTitle.Render("SCRIPTABLE OPERATIONS") + "\n")
-	b.WriteString(styleDim.Render("  deploy:   claw1 deploy --oci --yes [--json]") + "\n")
-	b.WriteString(styleDim.Render("  destroy:  claw1 destroy --oci --dry-run | claw1 destroy --oci --yes [--json]") + "\n")
-	b.WriteString(styleDim.Render("  inspect:  claw1 inspect --oci [--json]") + "\n")
+	b.WriteString(styleDim.Render("  deploy:   claw1 deploy --local [--json]  |  claw1 deploy --oci --yes [--json]") + "\n")
+	b.WriteString(styleDim.Render("  destroy:  claw1 destroy --local [--json] |  claw1 destroy --oci --dry-run") + "\n")
+	b.WriteString(styleDim.Render("  inspect:  claw1 inspect --local [--json]") + "\n")
 	b.WriteString(styleDim.Render("  wallets:  claw1 wallet list [--json]") + "\n")
 
-	keys := "  [Tab] next field   [D] deploy   [Q] quit"
+	keys := "  [Tab] next field   [I] toggle ICTT   [D] deploy   [Q] quit"
 	if m.target == targetOCI {
 		keys = "  [Tab] next field   [I] toggle ICTT   [D] deploy   [Q] quit"
 	}

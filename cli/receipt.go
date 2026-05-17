@@ -16,13 +16,13 @@ import (
 // ── network.json schema ───────────────────────────────────────────────────────
 
 type networkJSON struct {
-	Name               string    `json:"name"`
-	ChainID            int64     `json:"chainId"`
-	RPCURL             string    `json:"rpcUrl"`
-	PlatformRPCURL     string    `json:"platformRpcUrl"`
-	DeployerPrivateKey string    `json:"deployerPrivateKey"`
+	Name               string     `json:"name"`
+	ChainID            int64      `json:"chainId"`
+	RPCURL             string     `json:"rpcUrl"`
+	PlatformRPCURL     string     `json:"platformRpcUrl"`
+	DeployerPrivateKey string     `json:"deployerPrivateKey"`
 	Contracts          []contract `json:"contracts"`
-	OCI                *ociMeta  `json:"oci,omitempty"`
+	OCI                *ociMeta   `json:"oci,omitempty"`
 }
 
 type contract struct {
@@ -46,13 +46,13 @@ type copyDoneMsg string
 // ── Model ─────────────────────────────────────────────────────────────────────
 
 type receiptModel struct {
-	net       *networkJSON
-	block     int64
-	blockErr  string
-	copyMsg   string
-	target    deployTarget
-	repoRoot  string
-	width     int
+	net      *networkJSON
+	block    int64
+	blockErr string
+	copyMsg  string
+	target   deployTarget
+	repoRoot string
+	width    int
 }
 
 func newReceiptModel(target deployTarget, repoRoot string) receiptModel {
@@ -178,6 +178,9 @@ func (m receiptModel) View(width int) string {
 	}
 	b.WriteString(row("NETWORK", m.net.Name, "CHAIN", fmt.Sprintf("%d", m.net.ChainID)))
 	b.WriteString(row("VALIDATORS", validatorsStr(m.net), "BLOCK", blockStr))
+	if m.target == targetLocal {
+		b.WriteString(row("TOPOLOGY", "Developer appliance", "PROD TARGET", "multi-node L1"))
+	}
 
 	if m.net.OCI != nil {
 		tenancyLabel := "local"
@@ -197,8 +200,9 @@ func (m receiptModel) View(width int) string {
 	// Contracts
 	b.WriteString("\n" + styleSectionTitle.Render("DEPLOYED CONTRACTS") + "\n")
 	showContracts := []string{
-		"ComplianceRegistry", "DividendDistributor", "CEQ_Token",
-		"ClaimIssuer", "IdentityRegistry",
+		"ComplianceRegistry", "DividendDistributor", "ERC3643Token",
+		"ClaimIssuer", "IdentityRegistry", "ICTTSourceToken",
+		"ICTTTokenHome", "ICTTTokenRemote",
 	}
 	shown := 0
 	for _, name := range showContracts {
@@ -211,6 +215,18 @@ func (m receiptModel) View(width int) string {
 	}
 	if shown == 0 {
 		b.WriteString(styleDim.Render("  No contracts found in network.json") + "\n")
+	}
+
+	b.WriteString("\n" + styleSectionTitle.Render("INTEROPERABILITY TRACE") + "\n")
+	home := findContract(m.net, "ICTTTokenHome")
+	remote := findContract(m.net, "ICTTTokenRemote")
+	if home != "" && remote != "" {
+		b.WriteString("  " + dot(green) + "  " + styleValue.Render("TokenHome") + "  " + styleGreen.Render(shortAddr(home)) + "\n")
+		b.WriteString("  " + dot(green) + "  " + styleValue.Render("TokenRemote") + " " + styleGreen.Render(shortAddr(remote)) + "\n")
+		b.WriteString(styleDim.Render("  Trace target: C-chain source tx -> Teleporter message -> L1 mint/receive") + "\n")
+	} else {
+		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render("Bridge workbench pending") + "\n")
+		b.WriteString(styleDim.Render("  Set local Teleporter env and rerun with ICTT enabled to deploy TokenHome/TokenRemote.") + "\n")
 	}
 
 	// RPC URL (truncated)

@@ -207,9 +207,12 @@ La TUI es la forma más rápida de operar el flujo completo sin tocar archivos d
 Los mismos workflows corren sin pantalla interactiva para pruebas, scripts y demos grabadas:
 
 ```bash
+./cli/claw1 deploy --local
+./cli/claw1 deploy --local --ictt
+./cli/claw1 deploy --local --json
 ./cli/claw1 deploy --oci --yes
 ./cli/claw1 deploy --oci --yes --json
-./cli/claw1 inspect --oci
+./cli/claw1 inspect --local
 ./cli/claw1 wallet list --json
 ./cli/claw1 destroy --oci --dry-run
 ./cli/claw1 destroy --oci --yes --json
@@ -235,27 +238,22 @@ En modo programático, un dry-run OCI sin `--yes` termina con código `1` despu�
   CLAW1  Compliance Deploy Wizard
 
   DEPLOY TARGET
-  ● Oracle Cloud Infrastructure (OCI)
-  ○ Local (on-prem devnet)
+  ○ Oracle Cloud Infrastructure (OCI)
+  ● Local (on-prem devnet)
   [1] OCI   [2] Local
 
-  OCI CREDENTIALS
-  Tenancy OCID    ocid1.tenancy.oc1..XXXX
-  User OCID       ocid1.user.oc1..XXXX
-  Fingerprint     xx:xx:xx:xx:xx:xx:xx:xx
-  API key path    ~/.oci/oci_api_key.pem
+  REGULATORY PRESET
+  ● CNBV-style regulated asset
 
-  INFRASTRUCTURE
-  Region          us-ashburn-1
-  Shape           VM.Standard.A1.Flex
-  OCPUs           2
-  Memory (GB)     8
+  ICTT BRIDGE
+  ○ Disabled  (press [I] to enable bridge-first demo)
 
-  [Tab] next field   [D] deploy   [Q] quit
+  [Tab] next field   [I] toggle ICTT   [D] deploy   [Q] quit
 ```
 
 - **[1]** selecciona OCI — muestra formulario de credenciales
 - **[2]** selecciona Local — no se necesitan credenciales
+- **[I]** habilita el workbench ICTT para intentar TokenHome/TokenRemote local
 - **[Tab]** / **[↑↓]** navega entre campos
 - **[D]** valida y comienza el despliegue
 
@@ -275,7 +273,11 @@ Para local:
   ● Build Terraform provider  done  45s
   ● Deploy Avalanche L1       running  1m12s
   ○ Deploy compliance contracts  waiting
+  ○ Deploy ERC-3643 suite     waiting
+  ○ Run ICTT bridge workbench waiting
 ```
+
+Si ICTT no tiene sus prerequisitos locales (`C_CHAIN_BLOCKCHAIN_ID`, `L1_TELEPORTER_REGISTRY`), el deploy lo reporta como workbench pendiente y conserva la L1 + ERC-3643 como flujo usable. No marca un bridge falso como exitoso.
 
 ### Pantalla 3: Sovereignty Receipt
 
@@ -739,7 +741,7 @@ terraform {
 resource "claw1_l1" "demo" {
   name       = "claw1demobank"
   chain_id   = 432260
-  validators = 5
+  enable_icm = true
 }
 
 resource "claw1_contract" "compliance" {
@@ -800,6 +802,10 @@ resource "claw1_contract" "dividends" {
 |----------|---------|-------------|
 | `CLAW1_DATA_DIR` | `~/.claw1` | Directorio base para `network.json` y logs |
 | `CLAW1_NAME` | `claw1demobank` | Nombre de red usado por `run.sh` y scripts |
+| `C_CHAIN_RPC_URL` | `http://127.0.0.1:9650/ext/bc/C/rpc` | RPC de C-Chain para el workbench ICTT local |
+| `C_CHAIN_BLOCKCHAIN_ID` | — | Blockchain ID de C-Chain como `bytes32` hex; requerido por `claw1 deploy --local --ictt` |
+| `L1_TELEPORTER_REGISTRY` | — | Teleporter Registry en la L1 local; requerido por ICTT local |
+| `C_CHAIN_TELEPORTER_REGISTRY` | `L1_TELEPORTER_REGISTRY` | Teleporter Registry en C-Chain para ICTT local |
 | `OCI_CLI_AUTH` | — | Método de autenticación OCI (`api_key`, `instance_principal`) |
 | `TF_LOG` | — | Nivel de log de Terraform (`DEBUG`, `INFO`, `WARN`, `ERROR`) |
 
@@ -913,6 +919,19 @@ Espera 2-3 minutos para que el indexer se sincronice desde genesis, luego recarg
 ```bash
 docker compose -f docker/blockscout/docker-compose.yml restart
 ```
+
+### `claw1 deploy --local --ictt` se detiene por variables Teleporter faltantes
+
+El modo ICTT local es un workbench de interoperabilidad. La L1 y el ERC-3643 quedan desplegados, pero el bridge no se marca como exitoso si falta el registro Teleporter local:
+
+```bash
+export C_CHAIN_BLOCKCHAIN_ID=<c-chain-bytes32-hex>
+export L1_TELEPORTER_REGISTRY=<registry-on-custom-l1>
+export C_CHAIN_TELEPORTER_REGISTRY=<registry-on-local-c-chain>
+./cli/claw1 deploy --local --ictt
+```
+
+Si todavía no tienes esos valores, usa la TUI sin ICTT para mostrar el flujo regulado y presenta la sección `INTEROPERABILITY TRACE` como workbench pendiente.
 
 ### `run.sh` falla con "Stale network.json detected"
 
