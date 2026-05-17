@@ -108,7 +108,16 @@ func runDeployCLI(repoRoot string, args []string) int {
 			m.logCh = nil
 		case idx := <-m.advCh:
 			sink.emit(workflowEvent{RunID: runID, Workflow: "deploy", Step: fmt.Sprintf("step_%d", idx), Status: "running"})
+		case err := <-m.errCh:
+			sink.emit(workflowEvent{RunID: runID, Workflow: "deploy", Step: "complete", Status: "failed_closed", ErrorCode: "deploy_failed", Message: err.Error()})
+			return 1
 		case <-done:
+			select {
+			case err := <-m.errCh:
+				sink.emit(workflowEvent{RunID: runID, Workflow: "deploy", Step: "complete", Status: "failed_closed", ErrorCode: "deploy_failed", Message: err.Error()})
+				return 1
+			default:
+			}
 			sink.emit(workflowEvent{RunID: runID, Workflow: "deploy", Step: "complete", Status: "succeeded"})
 			return 0
 		}

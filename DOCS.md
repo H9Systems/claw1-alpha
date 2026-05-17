@@ -859,6 +859,15 @@ El endpoint RPC no estaba listo. El proveedor espera hasta 30s; si sigue falland
 ./run.sh --skip-build   # reintenta sin reconstruir el proveedor
 ```
 
+### `DeployERC3643` falla con "missing hex prefix"
+
+La llave del deployer en `network.json` puede estar almacenada sin prefijo `0x`. El CLI y `run.sh` normalizan la llave antes de llamar a Foundry. Reconstruye y reintenta:
+```bash
+cd cli
+make build
+./claw1 deploy --local
+```
+
 ### Puerto 9650 ya en uso
 
 ```bash

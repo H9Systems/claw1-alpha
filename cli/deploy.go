@@ -457,7 +457,7 @@ func (m *deployModel) deployOCIContracts(activeRPC string) error {
 	// ERC-3643 suite
 	m.logCh <- "[forge] deploying ERC-3643 (T-REX) suite..."
 	erc3643Env := []string{
-		"DEPLOYER_PRIVATE_KEY=" + deployer,
+		"DEPLOYER_PRIVATE_KEY=" + hexPrivateKey(deployer),
 		"DEMO_INVESTOR_ADDRESS=" + ewoqAddr,
 	}
 	_, err = m.captureForge(contractsDir, erc3643Env,
@@ -715,7 +715,7 @@ func (m *deployModel) deployERC3643Local() error {
 	const ewoqAddr = "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"
 	m.logCh <- "[forge] deploying ERC-3643 (T-REX) suite..."
 	out, err := m.captureForge(contractsDir, []string{
-		"DEPLOYER_PRIVATE_KEY=" + net.DeployerPrivateKey,
+		"DEPLOYER_PRIVATE_KEY=" + hexPrivateKey(net.DeployerPrivateKey),
 		"DEMO_INVESTOR_ADDRESS=" + ewoqAddr,
 	},
 		"script", "script/DeployERC3643.s.sol:DeployERC3643",
@@ -732,6 +732,14 @@ func (m *deployModel) deployERC3643Local() error {
 	net.Contracts = upsertContract(net.Contracts, "IdentityRegistry", parseLabelAddress(out, "IdentityRegistry:"), now)
 	net.Contracts = upsertContract(net.Contracts, "ClaimIssuer", parseLabelAddress(out, "ClaimIssuer (KYC auth):"), now)
 	return writeNetworkFile(netPath, &net)
+}
+
+func hexPrivateKey(key string) string {
+	key = strings.TrimSpace(key)
+	if strings.HasPrefix(key, "0x") || strings.HasPrefix(key, "0X") {
+		return key
+	}
+	return "0x" + key
 }
 
 func (m *deployModel) deployLocalICTT() error {

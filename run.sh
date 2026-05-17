@@ -147,7 +147,12 @@ if [ "$OCI_MODE" = true ]; then
   [ -z "$DD_ADDR" ] && die "Could not parse DividendDistributor address from forge output"
 
   step "4b/5" "Deploy ERC-3643 (T-REX) suite via forge script"
-  ERC3643_OUT=$(DEPLOYER_PRIVATE_KEY="$DEPLOYER_KEY" \
+  DEPLOYER_KEY_HEX="$DEPLOYER_KEY"
+  case "$DEPLOYER_KEY_HEX" in
+    0x*|0X*) ;;
+    *) DEPLOYER_KEY_HEX="0x$DEPLOYER_KEY_HEX" ;;
+  esac
+  ERC3643_OUT=$(DEPLOYER_PRIVATE_KEY="$DEPLOYER_KEY_HEX" \
     DEMO_INVESTOR_ADDRESS="$EWOQ_ADDR" \
     forge script "script/DeployERC3643.s.sol:DeployERC3643" \
       --root "$CONTRACTS_DIR" \
@@ -312,7 +317,12 @@ else
   [ -n "$LOCAL_DEPLOYER_KEY" ] && [ "$LOCAL_DEPLOYER_KEY" != "null" ] || die "network.json missing deployerPrivateKey"
 
   LOCAL_EWOQ_ADDR="0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"
-  ERC3643_OUT=$(DEPLOYER_PRIVATE_KEY="$LOCAL_DEPLOYER_KEY" \
+  LOCAL_DEPLOYER_KEY_HEX="$LOCAL_DEPLOYER_KEY"
+  case "$LOCAL_DEPLOYER_KEY_HEX" in
+    0x*|0X*) ;;
+    *) LOCAL_DEPLOYER_KEY_HEX="0x$LOCAL_DEPLOYER_KEY_HEX" ;;
+  esac
+  ERC3643_OUT=$(DEPLOYER_PRIVATE_KEY="$LOCAL_DEPLOYER_KEY_HEX" \
     DEMO_INVESTOR_ADDRESS="$LOCAL_EWOQ_ADDR" \
     forge script "script/DeployERC3643.s.sol:DeployERC3643" \
       --root "$REPO_ROOT/contracts" \
