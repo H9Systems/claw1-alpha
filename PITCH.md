@@ -1,9 +1,5 @@
 # Despliega Tu L1 con Claw1
 
-Infraestructura de compliance regulatorio para L1s de Avalanche.
-
-Una pila completa — cadena permisionada, contratos ERC-3643 / T-REX, atestiguación on-chain — en un solo comando.
-
 ## El problema
 
 Las IFCs en Latam quieren tokenizar acciones de startups.
