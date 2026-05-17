@@ -43,10 +43,21 @@ function renderInline(text: string) {
   const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*)/g)
   return parts.map((part, index) => {
     if (part.startsWith('`') && part.endsWith('`')) {
-      return <code key={index}>{part.slice(1, -1)}</code>
+      return (
+        <code
+          key={index}
+          className="inline-block px-1.5 py-0.5 border border-code-border rounded bg-code-bg font-mono text-[0.82em]"
+        >
+          {part.slice(1, -1)}
+        </code>
+      )
     }
     if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={index}>{part.slice(2, -2)}</strong>
+      return (
+        <strong key={index} className="text-accent font-bold">
+          {part.slice(2, -2)}
+        </strong>
+      )
     }
     return <React.Fragment key={index}>{part}</React.Fragment>
   })
@@ -59,9 +70,11 @@ function SlideBody({ body }: { body: string[] }) {
   const flushList = () => {
     if (list.length === 0) return
     blocks.push(
-      <ul key={`list-${blocks.length}`}>
+      <ul key={`list-${blocks.length}`} className="grid gap-3 max-w-[880px] m-0 pl-[1.15em]">
         {list.map((item) => (
-          <li key={item}>{renderInline(item.replace(/^-\s+/, ''))}</li>
+          <li key={item} className="max-w-[820px] m-0 text-[clamp(20px,2.5vw,34px)] leading-[1.24]">
+            {renderInline(item.replace(/^-\s+/, ''))}
+          </li>
         ))}
       </ul>,
     )
@@ -77,7 +90,11 @@ function SlideBody({ body }: { body: string[] }) {
     if (line.trim() === '') {
       return
     }
-    blocks.push(<p key={`p-${index}`}>{renderInline(line)}</p>)
+    blocks.push(
+      <p key={`p-${index}`} className="max-w-[820px] m-0 text-[clamp(20px,2.5vw,34px)] leading-[1.24]">
+        {renderInline(line)}
+      </p>,
+    )
   })
   flushList()
   return <>{blocks}</>
@@ -85,11 +102,18 @@ function SlideBody({ body }: { body: string[] }) {
 
 function Deck() {
   return (
-    <main className="deck">
+    <main className="w-[min(1180px,calc(100vw-40px))] mx-auto py-7 pb-14 max-md:w-[min(calc(100vw-24px),680px)] max-md:pt-2.5">
       {slides.map((slide, index) => (
-        <section className="slide" key={slide.title}>
-          <div className="slideIndex">{String(index + 1).padStart(2, '0')}</div>
-          <h1>{slide.title}</h1>
+        <section
+          className="relative min-h-[82vh] grid content-center gap-[18px] px-[clamp(20px,5vw,72px)] py-16 border-b border-rule first:min-h-[92vh] max-md:min-h-auto max-md:px-1 max-md:py-[72px_4px_42px]"
+          key={slide.title}
+        >
+          <div className="absolute top-7 right-0 text-[13px] text-ink-light tabular-nums">
+            {String(index + 1).padStart(2, '0')}
+          </div>
+          <h1 className="max-w-[980px] m-0 text-[#111] text-[clamp(42px,7vw,92px)] leading-[0.95] tracking-normal">
+            {slide.title}
+          </h1>
           <SlideBody body={slide.body} />
         </section>
       ))}

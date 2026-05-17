@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Demo reset script.
-# Usage: ./demo/reset.sh [--apply-only]
+# Usage: ./scripts/reset.sh [--apply-only]
 #
 # Full reset (default): terraform destroy → network clean → terraform apply
 # Apply only:           terraform apply (network already clean)

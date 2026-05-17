@@ -23,6 +23,7 @@ type cliOptions struct {
 }
 
 func parseCommonFlags(args []string) (cliOptions, []string, error) {
+	args = normalizeCommonFlags(args)
 	fs := flag.NewFlagSet("claw1", flag.ContinueOnError)
 	fs.SetOutput(os.Stderr)
 	var opt cliOptions
@@ -44,6 +45,26 @@ func parseCommonFlags(args []string) (cliOptions, []string, error) {
 		opt.target = targetLocal
 	}
 	return opt, fs.Args(), nil
+}
+
+func normalizeCommonFlags(args []string) []string {
+	var flags []string
+	var rest []string
+	for i := 0; i < len(args); i++ {
+		switch args[i] {
+		case "--yes", "--json", "--dry-run", "--preserve-evidence", "--oci", "--local":
+			flags = append(flags, args[i])
+		case "--evidence-bucket":
+			flags = append(flags, args[i])
+			if i+1 < len(args) {
+				flags = append(flags, args[i+1])
+				i++
+			}
+		default:
+			rest = append(rest, args[i])
+		}
+	}
+	return append(flags, rest...)
 }
 
 func runDeployCLI(repoRoot string, args []string) int {

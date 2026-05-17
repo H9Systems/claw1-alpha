@@ -10,18 +10,19 @@ This guide covers everything needed to get Claw1 running, from zero to a private
 
 1. [Prerequisites](#1-prerequisites)
 2. [Install the claw1 binary](#2-install-the-claw1-binary)
-3. [Quick deploy with TUI](#3-quick-deploy-with-tui)
-4. [Local deployment — full guide](#4-local-deployment--full-guide)
-5. [OCI deployment — full guide](#5-oci-deployment--full-guide)
-6. [Resetting for demo](#6-resetting-for-demo)
-7. [Verifying contracts](#7-verifying-contracts)
-8. [Reference: network.json](#8-reference-networkjson)
-9. [Blockscout (block explorer)](#9-blockscout-block-explorer)
-10. [Contract tests](#10-contract-tests)
-11. [Terraform reference](#11-terraform-reference)
-12. [Environment variables](#12-environment-variables)
-13. [Security](#13-security)
-14. [Troubleshooting](#14-troubleshooting)
+3. [Run It Now](#3-run-it-now)
+4. [Quick deploy with TUI](#4-quick-deploy-with-tui)
+5. [Local deployment — full guide](#5-local-deployment--full-guide)
+6. [OCI deployment — full guide](#6-oci-deployment--full-guide)
+7. [Resetting for demo](#7-resetting-for-demo)
+8. [Verifying contracts](#8-verifying-contracts)
+9. [Reference: network.json](#9-reference-networkjson)
+10. [Run Observability and Blockscout](#10-run-observability-and-blockscout)
+11. [Contract tests](#11-contract-tests)
+12. [Terraform reference](#12-terraform-reference)
+13. [Environment variables](#13-environment-variables)
+14. [Security](#14-security)
+15. [Troubleshooting](#15-troubleshooting)
 
 ---
 
@@ -139,39 +140,77 @@ Requires Go 1.21+.
 ### Verify installation
 
 ```bash
-claw1 --help
+claw1 demo
+# Should print the demo-mode preflight result.
 ```
 
 ---
 
-## 3. Quick deploy with TUI
+## 3. Run It Now
+
+From source, build the local binary first. This avoids depending on the latest GitHub release already containing this branch.
+
+```bash
+cd cli
+make build
+cd ..
+./cli/claw1 demo
+```
+
+If `demo` passes preflight, you have two operating paths:
+
+```bash
+./cli/claw1          # interactive TUI
+./cli/claw1 wallet list --json
+./cli/claw1 inspect
+./cli/claw1 destroy --oci --dry-run
+```
+
+Note: `destroy --oci --dry-run` prints inventory and exits with code `1` unless you pass `--yes`. That is intentional: OCI destroy fails closed by default for scripts.
+
+To install this checkout globally as `claw1`:
+
+```bash
+cd cli
+make install
+cd ..
+claw1 demo
+```
+
+---
+
+## 4. Quick deploy with TUI
 
 The TUI is the fastest way to operate the full flow without manually editing config files.
 
 ```bash
-claw1
+./cli/claw1
 ```
 
-### 3.1 Programmatic Subcommands
+### 4.1 Programmatic Subcommands
 
 The same workflows run without an interactive screen for tests, scripts, and recorded demos:
 
 ```bash
-claw1 deploy --oci --yes
-claw1 deploy --oci --yes --json
-claw1 inspect --oci
-claw1 wallet list --json
-claw1 destroy --oci --dry-run
-claw1 destroy --oci --yes --json
+./cli/claw1 deploy --oci --yes
+./cli/claw1 deploy --oci --yes --json
+./cli/claw1 inspect --oci
+./cli/claw1 wallet list --json
+./cli/claw1 destroy --oci --dry-run
+./cli/claw1 destroy --oci --yes --json
 ```
 
 `--json` emits stable JSONL with `run_id`, `workflow`, `step`, `status`, `resource_id`, `chain_id`, `tx_hash`, `message_id`, `error_code`, and manual commands when relevant.
 
-### 3.2 Safe OCI Destruction
+### 4.2 Safe OCI Destruction
 
 `claw1 destroy --oci` fails closed. Correct flow is dry-run by default, Terraform + OCI inventory, explicit confirmation, `terraform destroy`, repair of known leftovers, final verification, and local evidence under `~/.claw1/{deployment}/evidence/{run_id}/`.
 
 `--preserve-evidence` keeps local evidence only. `--evidence-bucket` is the only option that intentionally retains a cloud resource.
+
+In programmatic mode, an OCI dry-run without `--yes` exits with code `1` after printing the plan. That tells CI/scripts: “nothing was destroyed”.
+
+**Current state:** the programmatic spine exists and generates local evidence + Terraform inventory. If the `oci` CLI is installed, it also runs a direct OCI search for `claw1` resources. Per-resource OCI repair is the next hardening step; today, if anything remains, the command fails closed and prints manual commands.
 
 ### Screen 1: Wizard
 
@@ -218,11 +257,11 @@ claw1 receipt --oci    # OCI
 
 ---
 
-## 4. Local deployment — full guide
+## 5. Local deployment — full guide
 
 Local deployment starts a 5-validator Avalanche network on your machine, deploys ComplianceRegistry and DividendDistributor, and writes state to `~/.claw1/claw1demobank/network.json`.
 
-### 4.1 Preflight
+### 6.1 Preflight
 
 ```bash
 ./preflight.sh
@@ -236,12 +275,12 @@ avalanche network clean
 ./preflight.sh
 ```
 
-### 4.2 Build and install the Terraform provider
+### 6.2 Build and install the Terraform provider
 
 ```bash
-cd terraform-provider-claw1
+cd terraform/providers/terraform-provider-claw1
 make install
-cd ..
+cd ../../..
 ```
 
 Installs to:
@@ -255,7 +294,7 @@ After rebuilding, delete the lock file:
 rm -f terraform/.terraform.lock.hcl
 ```
 
-### 4.3 Initialize Terraform
+### 6.3 Initialize Terraform
 
 ```bash
 cd terraform
@@ -270,7 +309,7 @@ rm -f .terraform.lock.hcl
 terraform init -upgrade
 ```
 
-### 4.4 Deploy
+### 6.4 Deploy
 
 ```bash
 terraform apply
@@ -281,24 +320,24 @@ Terraform runs in order:
 2. **`claw1_contract.compliance`** — calls `forge create src/ComplianceRegistry.sol:ComplianceRegistry` with 5 constructor args.
 3. **`claw1_contract.dividends`** — calls `forge create src/DividendDistributor.sol:DividendDistributor`.
 
-### 4.5 One-line flow
+### 6.5 One-line flow
 
 ```bash
 ./run.sh
 ```
 
-Equivalent to steps 4.1–4.4 plus starting Blockscout in the background.
+Equivalent to steps 5.1–5.4. Blockscout is optional and not part of the critical path.
 
 Available flags:
 | Flag | Effect |
 |------|--------|
 | `--skip-build` | Skip `make install` (useful on re-runs) |
-| `--no-explorer` | Skip Blockscout |
-| `--oci` | OCI mode: see section 5 |
+| `--no-explorer` | Skip optional Blockscout |
+| `--oci` | OCI mode: see section 6 |
 
 ---
 
-## 5. OCI deployment — full guide
+## 6. OCI deployment — full guide
 
 OCI deployment is two-phase:
 
@@ -307,7 +346,7 @@ OCI deployment is two-phase:
 
 ---
 
-### 5.1 Create OCI account (if you don't have one)
+### 6.1 Create OCI account (if you don't have one)
 
 Go to https://cloud.oracle.com/free
 
@@ -319,7 +358,7 @@ For the demo, `VM.Standard.A1.Flex` with 2 OCPUs and 8 GB is recommended.
 
 ---
 
-### 5.2 Generate OCI API signing key
+### 6.2 Generate OCI API signing key
 
 1. In the OCI console, click your avatar (top right) → **My Profile**
 2. Under **Resources** → **API Keys** → **Add API Key**
@@ -336,7 +375,7 @@ chmod 600 ~/.oci/oci_api_key.pem
 
 ---
 
-### 5.3 Create `~/.oci/config`
+### 6.3 Create `~/.oci/config`
 
 Paste the config snippet from step 5.2 into `~/.oci/config`:
 
@@ -353,7 +392,7 @@ Verify the fingerprint in the config matches exactly what appears in the OCI con
 
 ---
 
-### 5.4 Get your compartment OCID
+### 6.4 Get your compartment OCID
 
 - OCI Console → **Identity & Security** → **Compartments**
 - Use the **root compartment** OCID (format `ocid1.tenancy.oc1..XXXX`) or create a new one
@@ -361,7 +400,7 @@ Verify the fingerprint in the config matches exactly what appears in the OCI con
 
 ---
 
-### 5.5 Get your Availability Domain name
+### 6.5 Get your Availability Domain name
 
 - OCI Console → **Compute** → **Instances** → **Create Instance**
 - Look at the **Placement** section → copy the Availability Domain name
@@ -379,7 +418,7 @@ The 4-character prefix (`TxNZ` in the example) varies by tenancy — always get 
 
 ---
 
-### 5.6 Create `terraform/oci/terraform.tfvars`
+### 6.6 Create `terraform/oci/terraform.tfvars`
 
 ```bash
 cp terraform/oci/terraform.tfvars.example terraform/oci/terraform.tfvars
@@ -407,7 +446,7 @@ shape_memory_gbs    = 8
 
 ---
 
-### 5.7 Verify SSH key pair
+### 6.7 Verify SSH key pair
 
 ```bash
 ls ~/.ssh/id_ed25519.pub
@@ -417,7 +456,7 @@ ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
 
 ---
 
-### 5.8 Phase 1: Provision VM + L1 on OCI
+### 6.8 Phase 1: Provision VM + L1 on OCI
 
 ```bash
 cd terraform/oci
@@ -454,7 +493,7 @@ tail -100 /tmp/claw1-bootstrap.log
 
 ---
 
-### 5.9 Phase 2: Deploy contracts via SSH tunnel
+### 6.9 Phase 2: Deploy contracts via SSH tunnel
 
 ```bash
 cd ../..   # back to repo root
@@ -485,7 +524,7 @@ When complete:
 
 ---
 
-### 5.10 Using the TUI for OCI deployment
+### 6.10 Using the TUI for OCI deployment
 
 Alternatively, the TUI handles both phases automatically:
 
@@ -500,12 +539,12 @@ The TUI writes `~/.oci/config` and `terraform/oci/terraform.tfvars` automaticall
 
 ---
 
-## 6. Resetting for demo
+## 7. Resetting for demo
 
 To do a full destroy → clean → redeploy cycle before the demo:
 
 ```bash
-./demo/reset.sh
+./scripts/reset.sh
 ```
 
 Runs in order:
@@ -515,16 +554,16 @@ Runs in order:
 
 To skip the destroy if the network is already clean:
 ```bash
-./demo/reset.sh --apply-only
+./scripts/reset.sh --apply-only
 ```
 
-**Run `demo/reset.sh` twice** the night before the demo to confirm the full cycle completes reliably.
+**Run `scripts/reset.sh` twice** the night before the demo to confirm the full cycle completes reliably.
 
 Expected cycle time: 2–3 minutes (local), 15–20 minutes (OCI destroy + reprovision).
 
 ---
 
-## 7. Verifying contracts
+## 8. Verifying contracts
 
 ### Verify bytecode exists
 
@@ -561,7 +600,7 @@ cast call 0x0200000000000000000000000000000000000002 \
 
 ---
 
-## 8. Reference: network.json
+## 9. Reference: network.json
 
 Written by the Terraform provider to `$HOME/.claw1/{name}/network.json`. Never commit — it contains the deployer private key.
 
@@ -600,7 +639,7 @@ Override base directory with `CLAW1_DATA_DIR`. Override name with `CLAW1_NAME`.
 
 ---
 
-## 9. Run Observability and Blockscout
+## 10. Run Observability and Blockscout
 
 Blockscout is optional. The critical demo path uses integrated `claw1` observability: block height, chain ID, RPC, wallet balances/nonces, tx lookup, deployed contracts, known events, and ICM/ICTT status when relevant.
 
@@ -618,7 +657,7 @@ The script reads `~/.claw1/claw1demobank/network.json` and rewrites the RPC URL 
 
 ---
 
-## 10. Contract tests
+## 11. Contract tests
 
 ```bash
 cd contracts
@@ -641,7 +680,7 @@ forge test --match-test test_distribute
 
 ---
 
-## 11. Terraform reference
+## 12. Terraform reference
 
 ### Local provider (`terraform/`)
 
@@ -713,7 +752,7 @@ resource "claw1_contract" "dividends" {
 
 ---
 
-## 12. Environment variables
+## 13. Environment variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
@@ -724,7 +763,7 @@ resource "claw1_contract" "dividends" {
 
 ---
 
-## 13. Security
+## 14. Security
 
 ### Private keys
 
@@ -751,7 +790,7 @@ terraform/oci/.terraform/
 
 ---
 
-## 14. Troubleshooting
+## 15. Troubleshooting
 
 ### `avalanche blockchain deploy` hangs past 10 minutes
 

@@ -10,18 +10,19 @@ Esta guía cubre todo lo necesario para poner en marcha Claw1, desde cero hasta 
 
 1. [Prerequisitos](#1-prerequisitos)
 2. [Instalar el binario claw1](#2-instalar-el-binario-claw1)
-3. [Despliegue rápido con TUI](#3-despliegue-rápido-con-tui)
-4. [Despliegue local — guía completa](#4-despliegue-local--guía-completa)
-5. [Despliegue OCI — guía completa](#5-despliegue-oci--guía-completa)
-6. [Resetear para la demo](#6-resetear-para-la-demo)
-7. [Verificar contratos](#7-verificar-contratos)
-8. [Referencia: network.json](#8-referencia-networkjson)
-9. [Blockscout (explorador de bloques)](#9-blockscout-explorador-de-bloques)
-10. [Tests de contratos](#10-tests-de-contratos)
-11. [Referencia Terraform](#11-referencia-terraform)
-12. [Variables de entorno](#12-variables-de-entorno)
-13. [Seguridad](#13-seguridad)
-14. [Solución de problemas](#14-solución-de-problemas)
+3. [Ejecutar ahora](#3-ejecutar-ahora)
+4. [Despliegue rápido con TUI](#4-despliegue-rápido-con-tui)
+5. [Despliegue local — guía completa](#5-despliegue-local--guía-completa)
+6. [Despliegue OCI — guía completa](#6-despliegue-oci--guía-completa)
+7. [Resetear para la demo](#7-resetear-para-la-demo)
+8. [Verificar contratos](#8-verificar-contratos)
+9. [Referencia: network.json](#9-referencia-networkjson)
+10. [Observabilidad del run y Blockscout](#10-observabilidad-del-run-y-blockscout)
+11. [Tests de contratos](#11-tests-de-contratos)
+12. [Referencia Terraform](#12-referencia-terraform)
+13. [Variables de entorno](#13-variables-de-entorno)
+14. [Seguridad](#14-seguridad)
+15. [Solución de problemas](#15-solución-de-problemas)
 
 ---
 
@@ -139,40 +140,77 @@ Requiere Go 1.21+.
 ### Verificar instalación
 
 ```bash
-claw1 --help
-# Debe mostrar la versión y los subcomandos disponibles
+claw1 demo
+# Debe imprimir el resultado del preflight del modo demo.
 ```
 
 ---
 
-## 3. Despliegue rápido con TUI
+## 3. Ejecutar ahora
+
+Desde el código fuente, compila primero el binario local. Esto evita depender de que la última release de GitHub ya incluya los cambios de esta rama.
+
+```bash
+cd cli
+make build
+cd ..
+./cli/claw1 demo
+```
+
+Si `demo` pasa el preflight, tienes dos formas de operar:
+
+```bash
+./cli/claw1          # TUI interactiva
+./cli/claw1 wallet list --json
+./cli/claw1 inspect
+./cli/claw1 destroy --oci --dry-run
+```
+
+Nota: `destroy --oci --dry-run` imprime el inventario y sale con código `1` si no pasas `--yes`. Eso es intencional: OCI destroy falla cerrado por defecto para scripts.
+
+Para instalarlo como `claw1` global desde este checkout:
+
+```bash
+cd cli
+make install
+cd ..
+claw1 demo
+```
+
+---
+
+## 4. Despliegue rápido con TUI
 
 La TUI es la forma más rápida de operar el flujo completo sin tocar archivos de configuración manualmente.
 
 ```bash
-claw1
+./cli/claw1
 ```
 
-### 3.1 Subcomandos programáticos
+### 4.1 Subcomandos programáticos
 
 Los mismos workflows corren sin pantalla interactiva para pruebas, scripts y demos grabadas:
 
 ```bash
-claw1 deploy --oci --yes
-claw1 deploy --oci --yes --json
-claw1 inspect --oci
-claw1 wallet list --json
-claw1 destroy --oci --dry-run
-claw1 destroy --oci --yes --json
+./cli/claw1 deploy --oci --yes
+./cli/claw1 deploy --oci --yes --json
+./cli/claw1 inspect --oci
+./cli/claw1 wallet list --json
+./cli/claw1 destroy --oci --dry-run
+./cli/claw1 destroy --oci --yes --json
 ```
 
 El modo `--json` emite JSONL estable con `run_id`, `workflow`, `step`, `status`, `resource_id`, `chain_id`, `tx_hash`, `message_id`, `error_code` y comandos manuales cuando aplica.
 
-### 3.2 Destrucción OCI segura
+### 4.2 Destrucción OCI segura
 
 `claw1 destroy --oci` falla cerrado. El flujo correcto es dry-run por defecto, inventario Terraform + OCI, confirmación explícita, `terraform destroy`, reparación de leftovers conocidos, verificación final y evidencia local bajo `~/.claw1/{deployment}/evidence/{run_id}/`.
 
 `--preserve-evidence` conserva solo evidencia local. `--evidence-bucket` es la única opción que retiene un recurso cloud intencionalmente.
+
+En modo programático, un dry-run OCI sin `--yes` termina con código `1` después de imprimir el plan. Es una señal para CI/scripts: “no destruí nada”.
+
+**Estado actual:** el spine programático ya existe y genera evidencia local + inventario Terraform. Si `oci` CLI está instalado, también ejecuta una búsqueda directa OCI por recursos `claw1`. La reparación OCI por tipo de recurso es la siguiente etapa de hardening; por ahora, si algo queda, el comando falla cerrado y muestra comandos manuales.
 
 ### Pantalla 1: Asistente
 
@@ -233,11 +271,11 @@ claw1 receipt --oci    # OCI
 
 ---
 
-## 4. Despliegue local — guía completa
+## 5. Despliegue local — guía completa
 
 El despliegue local arranca una red Avalanche de 5 validadores en tu máquina, despliega ComplianceRegistry y DividendDistributor, y escribe el estado en `~/.claw1/claw1demobank/network.json`.
 
-### 4.1 Preflight
+### 6.1 Preflight
 
 ```bash
 ./preflight.sh
@@ -251,12 +289,12 @@ avalanche network clean
 ./preflight.sh
 ```
 
-### 4.2 Build e instalación del proveedor Terraform
+### 6.2 Build e instalación del proveedor Terraform
 
 ```bash
-cd terraform-provider-claw1
+cd terraform/providers/terraform-provider-claw1
 make install
-cd ..
+cd ../../..
 ```
 
 Esto compila el proveedor Go y lo instala en:
@@ -270,7 +308,7 @@ Cuando reconstruyas el proveedor, elimina el lock file para que `terraform init`
 rm -f terraform/.terraform.lock.hcl
 ```
 
-### 4.3 Inicializar Terraform
+### 6.3 Inicializar Terraform
 
 ```bash
 cd terraform
@@ -285,7 +323,7 @@ rm -f .terraform.lock.hcl
 terraform init -upgrade
 ```
 
-### 4.4 Desplegar
+### 6.4 Desplegar
 
 ```bash
 terraform apply
@@ -298,24 +336,24 @@ Terraform ejecutará en orden:
 
 Al finalizar imprime las URLs RPC y las direcciones de los contratos.
 
-### 4.5 Flujo de una línea
+### 6.5 Flujo de una línea
 
 ```bash
 ./run.sh
 ```
 
-Equivale a los pasos 4.1–4.4 más iniciar Blockscout en segundo plano.
+Equivale a los pasos 5.1–5.4. Blockscout es opcional y no es parte del camino crítico.
 
 Flags disponibles:
 | Flag | Efecto |
 |------|--------|
 | `--skip-build` | Omite `make install` (útil en re-ejecuciones) |
-| `--no-explorer` | Omite Blockscout |
-| `--oci` | Modo OCI: ver sección 5 |
+| `--no-explorer` | Omite Blockscout opcional |
+| `--oci` | Modo OCI: ver sección 6 |
 
 ---
 
-## 5. Despliegue OCI — guía completa
+## 6. Despliegue OCI — guía completa
 
 El despliegue OCI es de dos fases:
 
@@ -324,7 +362,7 @@ El despliegue OCI es de dos fases:
 
 ---
 
-### 5.1 Crear cuenta OCI (si aún no tienes)
+### 6.1 Crear cuenta OCI (si aún no tienes)
 
 Ve a https://cloud.oracle.com/free
 
@@ -336,7 +374,7 @@ Para la demo se recomienda `VM.Standard.A1.Flex` con 2 OCPUs y 8 GB.
 
 ---
 
-### 5.2 Generar llave API de firma OCI
+### 6.2 Generar llave API de firma OCI
 
 1. En la consola OCI, haz clic en tu avatar (esquina superior derecha) → **My Profile**
 2. En la sección **Resources** → **API Keys** → **Add API Key**
@@ -353,7 +391,7 @@ chmod 600 ~/.oci/oci_api_key.pem
 
 ---
 
-### 5.3 Crear `~/.oci/config`
+### 6.3 Crear `~/.oci/config`
 
 Pega el snippet del paso 5.2 en `~/.oci/config`:
 
@@ -370,7 +408,7 @@ Verifica que el fingerprint en el config coincida exactamente con el que aparece
 
 ---
 
-### 5.4 Obtener el OCID del compartimiento
+### 6.4 Obtener el OCID del compartimiento
 
 - Consola OCI → **Identity & Security** → **Compartments**
 - Usa el **root compartment** OCID (formato `ocid1.tenancy.oc1..XXXX`) o crea uno nuevo para este proyecto
@@ -378,7 +416,7 @@ Verifica que el fingerprint en el config coincida exactamente con el que aparece
 
 ---
 
-### 5.5 Obtener el nombre del Availability Domain
+### 6.5 Obtener el nombre del Availability Domain
 
 - Consola OCI → **Compute** → **Instances** → **Create Instance**
 - Mira la sección **Placement** → copia el nombre del Availability Domain
@@ -396,7 +434,7 @@ El prefijo de 4 caracteres (`TxNZ` en el ejemplo) varía por tenancy — siempre
 
 ---
 
-### 5.6 Crear `terraform/oci/terraform.tfvars`
+### 6.6 Crear `terraform/oci/terraform.tfvars`
 
 ```bash
 cp terraform/oci/terraform.tfvars.example terraform/oci/terraform.tfvars
@@ -424,7 +462,7 @@ shape_memory_gbs    = 8
 
 ---
 
-### 5.7 Verificar par de llaves SSH
+### 6.7 Verificar par de llaves SSH
 
 ```bash
 ls ~/.ssh/id_ed25519.pub
@@ -434,7 +472,7 @@ ssh-keygen -t ed25519 -N "" -f ~/.ssh/id_ed25519
 
 ---
 
-### 5.8 Fase 1: Provisionar VM + L1 en OCI
+### 6.8 Fase 1: Provisionar VM + L1 en OCI
 
 ```bash
 cd terraform/oci
@@ -470,7 +508,7 @@ tail -100 /tmp/claw1-bootstrap.log
 
 ---
 
-### 5.9 Fase 2: Desplegar contratos vía túnel SSH
+### 6.9 Fase 2: Desplegar contratos vía túnel SSH
 
 ```bash
 cd ../..   # volver a la raíz del repo
@@ -501,7 +539,7 @@ Al finalizar:
 
 ---
 
-### 5.10 Usar la TUI para despliegue OCI
+### 6.10 Usar la TUI para despliegue OCI
 
 Alternativamente, la TUI maneja ambas fases automáticamente:
 
@@ -516,12 +554,12 @@ La TUI escribe `~/.oci/config` y `terraform/oci/terraform.tfvars` automáticamen
 
 ---
 
-## 6. Resetear para la demo
+## 7. Resetear para la demo
 
 Para hacer un ciclo completo destroy → clean → redeploy antes de la demo:
 
 ```bash
-./demo/reset.sh
+./scripts/reset.sh
 ```
 
 Ejecuta en orden:
@@ -531,16 +569,16 @@ Ejecuta en orden:
 
 Para saltarse el destroy si la red ya está limpia:
 ```bash
-./demo/reset.sh --apply-only
+./scripts/reset.sh --apply-only
 ```
 
-**Ejecuta `demo/reset.sh` dos veces** la noche anterior a la demo para confirmar que el ciclo completo termina de forma confiable.
+**Ejecuta `scripts/reset.sh` dos veces** la noche anterior a la demo para confirmar que el ciclo completo termina de forma confiable.
 
 Tiempo esperado del ciclo completo: 2–3 minutos (local), 15–20 minutos (OCI destroy + reprovision).
 
 ---
 
-## 7. Verificar contratos
+## 8. Verificar contratos
 
 ### Verificar que el bytecode existe
 
@@ -577,7 +615,7 @@ cast call 0x0200000000000000000000000000000000000002 \
 
 ---
 
-## 8. Referencia: network.json
+## 9. Referencia: network.json
 
 Escrito por el proveedor Terraform en `$HOME/.claw1/{nombre}/network.json`. Nunca confirmarlo — contiene la llave privada del deployer.
 
@@ -624,7 +662,7 @@ Sobreescribir directorio base con `CLAW1_DATA_DIR`. Sobreescribir nombre con `CL
 
 ---
 
-## 9. Observabilidad del run y Blockscout
+## 10. Observabilidad del run y Blockscout
 
 Blockscout es opcional. El camino crítico de demo usa la observabilidad integrada de `claw1`: altura de bloque, chain ID, RPC, balances/nonces por wallet, tx lookup, contratos desplegados, eventos conocidos y estado ICM/ICTT cuando aplique.
 
@@ -644,7 +682,7 @@ Busca la dirección del contrato en el explorador para ver la transacción de de
 
 ---
 
-## 10. Tests de contratos
+## 11. Tests de contratos
 
 ```bash
 cd contracts
@@ -667,7 +705,7 @@ forge test --match-test test_distribute
 
 ---
 
-## 11. Referencia Terraform
+## 12. Referencia Terraform
 
 ### Proveedor local (`terraform/`)
 
@@ -739,7 +777,7 @@ resource "claw1_contract" "dividends" {
 
 ---
 
-## 12. Variables de entorno
+## 13. Variables de entorno
 
 | Variable | Default | Descripción |
 |----------|---------|-------------|
@@ -750,7 +788,7 @@ resource "claw1_contract" "dividends" {
 
 ---
 
-## 13. Seguridad
+## 14. Seguridad
 
 ### Llaves privadas
 
@@ -777,7 +815,7 @@ terraform/oci/.terraform/
 
 ---
 
-## 14. Solución de problemas
+## 15. Solución de problemas
 
 ### `avalanche blockchain deploy` se congela más de 10 minutos
 

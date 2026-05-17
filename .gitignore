@@ -16,9 +16,9 @@ contracts/cache/
 contracts/broadcast/
 
 # Go build artifacts
-terraform-provider-claw1/dist/
-terraform-provider-claw1/terraform-provider-claw1
-terraform-provider-claw1/terraform-provider-claw1_*
+terraform/providers/terraform-provider-claw1/dist/
+terraform/providers/terraform-provider-claw1/terraform-provider-claw1
+terraform/providers/terraform-provider-claw1/terraform-provider-claw1_*
 *.terraform/
 .terraform.lock.hcl
 *.tfstate
@@ -36,6 +36,7 @@ __pycache__/
 *.pyc
 .venv/
 openclaw-sidecar/.venv/
+*.swp
 
 # OS
 .DS_Store

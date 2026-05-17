@@ -169,7 +169,7 @@ El competidor real es la propia plataforma Hyperledger Fabric de Oracle. Las emp
 └─────────────────────────────────────────────────────────────────┘
 
 Código Abierto (gratis):              Enterprise Gestionado (pago):
-  terraform-provider-claw1              Biblioteca de contratos auditados
+  terraform/providers/terraform-provider-claw1  Biblioteca de contratos auditados
   claw1 CLI / TUI                       Soporte SLA empresarial
   DividendDistributor + ComplianceRegistry  Perfiles de cumplimiento por jurisdicción
   Sovereignty Receipt                   OpenClaw (agente IA en OCI ADK)
@@ -193,10 +193,14 @@ claw1-alpha/
 │   │   └── DividendDistributor.sol
 │   └── test/
 ├── terraform/                      # despliegue local
-├── terraform/oci/                  # despliegue Oracle Cloud
-├── terraform-provider-claw1/       # proveedor Go Terraform
-├── run.sh                          # despliegue manual E2E
-└── demo/reset.sh                   # ciclo destroy → apply
+│   ├── oci/                        # despliegue Oracle Cloud
+│   └── providers/
+│       └── providers/terraform-provider-claw1/  # proveedor Go Terraform
+├── deck/                           # pitch deck React app
+│   └── main.tsx
+├── scripts/                        # scripts de utilidad
+│   └── reset.sh                    # ciclo destroy → apply
+└── run.sh                          # despliegue manual E2E
 ```
 
 ---
