@@ -103,7 +103,7 @@ function CodeBlock({ code }: { code: string }) {
 /* ── Inline renderer ────────────────────────────────────────────────────────── */
 
 function renderInline(text: string) {
-  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|==([^=]+)==|\[([^\]]+)\]\((https?:\/\/[^)]+)\))/g)
+  const parts = text.split(/(`[^`]+`|\*\*[^*]+\*\*|==(?:[^=]+)==|\[(?:[^\]]+)\]\((?:https?:\/\/[^)]+)\))/g).filter(p => p !== undefined)
   return parts.map((part, index) => {
     if (part.startsWith('`') && part.endsWith('`') && part.length > 2) {
       return (
