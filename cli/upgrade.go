@@ -265,23 +265,50 @@ func downloadToFile(url, nameHint string) (string, error) {
 }
 
 func replaceBinary(dst, src string) error {
-	// Try direct rename first (same filesystem, writable dir)
-	if err := os.Rename(src, dst); err == nil {
-		return nil
+	// Try same-directory rename first: create a temp file next to
+	// dst so both paths share a filesystem, making os.Rename atomic.
+	dstDir := filepath.Dir(dst)
+	tmp, err := os.CreateTemp(dstDir, ".claw1-upgrade-*")
+	if err == nil {
+		tmpPath := tmp.Name()
+		tmp.Close()
+
+		in, err := os.Open(src)
+		if err == nil {
+			out, err := os.OpenFile(tmpPath, os.O_WRONLY|os.O_TRUNC, 0755)
+			if err == nil {
+				_, cpErr := io.Copy(out, in)
+				syncErr := out.Sync()
+				out.Close()
+				in.Close()
+				if cpErr == nil && syncErr == nil {
+					if err := os.Rename(tmpPath, dst); err == nil {
+						return nil
+					}
+				}
+			} else {
+				in.Close()
+			}
+		}
+		os.Remove(tmpPath)
 	}
 
-	// Rename may fail across devices or on read-only directories.
-	// Fall back to copy-then-truncate, which works on Linux when the
-	// binary is still executing (same inode, content replaced).
+	// Fallback: unlink the running binary first (the kernel keeps
+	// the inode alive until the process exits), then copy the new
+	// binary to a fresh inode at the same path.  This avoids ETXTBSY.
+	if err := os.Remove(dst); err != nil {
+		return fmt.Errorf("unlink existing binary: %w", err)
+	}
+
 	in, err := os.Open(src)
 	if err != nil {
 		return fmt.Errorf("open source: %w", err)
 	}
 	defer in.Close()
 
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_TRUNC, 0755)
+	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY, 0755)
 	if err != nil {
-		return fmt.Errorf("open destination for write: %w", err)
+		return fmt.Errorf("create destination: %w", err)
 	}
 	defer out.Close()
 
