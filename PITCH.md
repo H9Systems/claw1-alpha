@@ -1,191 +1,123 @@
 # Despliega Tu L1 con Claw1
 
-## Infraestructura para L1s privadas
+Infraestructura de compliance regulatorio para L1s de Avalanche.
 
-Alchemy + Tenderly para Avalanche L1s privadas.
-
-Una TUI/CLI para desplegar, operar, observar y depurar infraestructura regulada en tu propio entorno.
-
-## La tesis
-
-Crear una red no es suficiente.
-
-Los equipos necesitan lo que las cadenas públicas ya tienen:
-
-- RPC confiable.
-- Explorer.
-- Logs.
-- Traces.
-- Entornos reproducibles.
-- Soporte cuando falla.
-
-Claw1 trae esa capa a redes que la empresa controla.
+Una pila completa — cadena permisionada, contratos ERC-3643 / T-REX, atestiguación on-chain — en un solo comando.
 
 ## El problema
 
-Las instituciones quieren soberanía, cumplimiento e interoperabilidad.
+Las IFCs en Latam quieren tokenizar acciones de startups.
 
-Pero el flujo real se rompe en demasiadas piezas:
+GAFI no lo permite en cadenas públicas:
 
-- Genesis.
-- Permisos.
-- Contratos.
-- Tokens.
-- Bridge.
-- Explorer.
+- Cualquier billetera puede recibir tokens sin verificación
+- Las transferencias no se pueden restringir por protocolo
+- El KYC es una promesa del emisor, no una regla del código
 
-Si el demo depende de MetaMask, Blockscout y comandos sueltos, no es una plataforma. Es una receta.
+Las instituciones necesitan una cadena donde el compliance sea el protocolo.
 
-## La solución
+## La arquitectura correcta
 
-`claw1` convierte ese flujo en un producto operativo.
+Una L1 permisionada de Avalanche con ERC-3643 / T-REX cambia eso:
 
-- Wizard regulatorio.
-- Terraform reproducible.
-- ERC-3643/T-REX.
-- ICTT workbench.
-- Explorer dentro de la TUI.
-- JSONL para CI y evidencia.
+- Solo billeteras en el IdentityRegistry pueden recibir tokens
+- Cada transferencia es validada on-chain antes de ejecutarse
+- Si el receptor no tiene KYC, el smart contract rechaza la transferencia
 
-## La demo de hoy
+El cumplimiento GAFI queda codificado en el protocolo — no declarado en un slide.
 
-Una sola VM.
+## Claw1: toda la pila en un comando
 
-No porque esa sea la topología de producción, sino porque es el appliance de desarrollo.
+```bash
+claw1 deploy
+```
 
-El operador corre `claw1`.
+Provisiona:
 
-Y ve:
+- L1 permisionada con validadores
+- ERC-3643 / T-REX con IdentityRegistry y ClaimIssuer
+- Atestiguación on-chain del deployment
+- Evidencia local del run completo
+- Destroy limpio con inventario verificado
 
-- Red primaria local.
-- L1 permisionada custom.
-- Preset regulatorio.
-- ERC-3643 emitido.
-- ICTT bridge workbench.
-- Trace dentro de la TUI.
+## La demo
 
-Esto es `docker compose up` para infraestructura financiera regulada.
+```bash
+claw1 demo
+```
 
-## No es producción
+El TUI guía cada paso:
 
-Es el entorno que hace producción posible.
+1. `claw1 inspect` → L1 activa, compliance contracts desplegados
+2. Transferencia a wallet verificada → **✓ OK** — en el IdentityRegistry
+3. Transferencia a wallet sin KYC → **✗ Rechazado**: IdentityRegistry: recipient not verified
+4. `claw1 inspect --evidence` → evidence bundle: tx hashes, rejection log, compliance state
+5. `claw1 destroy --yes` → OCI inventory clean. Nothing billable remains.
 
-La versión productiva usa:
+**El momento:** El smart contract rechaza la transferencia porque el receptor no está en el IdentityRegistry. Compliance GAFI por protocolo — no por promesa.
 
-- Múltiples validadores.
-- Múltiples VMs.
-- Llaves en HSM/Vault.
-- RBAC.
-- Auditoría externa.
-- Evidencia firmada.
-- Soporte con SLA.
+## Diferenciación: Oracle Cloud
+
+Solo Terraform provider para Avalanche + Oracle Cloud Infrastructure.
+
+El repositorio [avalanche-deploy](https://github.com/ava-labs/avalanche-deploy) no tiene provider para Oracle.
+
+Claw1 llena ese gap:
+
+- `terraform apply` despliega L1 + compliance contracts en OCI
+- Reproducible, declarativo, auditable
+- El mismo HCL que en local funciona en producción
+
+## No es producción — es lo que la hace posible
+
+La versión productiva requiere:
+
+- Múltiples validadores distribuidos
+- Llaves en HSM / OCI Vault
+- RBAC y auditoría externa
+- SLAs y upgrades gestionados
+- Evidencia firmada para reguladores
 
 Primero el equipo necesita reproducir todo el ciclo localmente.
 
 Ese es el producto que existe hoy.
 
-## Por qué importa
+## Hoja de ruta
 
-Avalanche permite L1s soberanas e interoperables.
+El appliance de hoy se convierte en infraestructura de mercado:
 
-La adopción institucional no se gana con una cadena vacía.
+- **ICTT bridge** — los tokens de la L1 cruzan al C-chain de Avalanche, desbloqueando liquidez en DEXs y protocolos públicos
+- **Compliance profiles** — configuraciones predefinidas por jurisdicción (CNBV, SEC, MiCA)
+- **Evidence bundles** — reportes listos para auditoría regulatoria
+- **Explorer privado** — dentro de la TUI, sin Blockscout
 
-Se gana cuando el equipo puede demostrar:
-
-- Qué reglas se aplicaron.
-- Qué activo se emitió.
-- Qué transferencia cruzó.
-- Qué trace lo prueba.
-- Qué queda por arreglar si algo falla.
-
-Claw1 hace que esa prueba viva en una TUI, no en una llamada de soporte.
-
-## Mercado
-
-TAM: blockchain technology global.
-
-Benchmark público: USD 31.28B en 2024, proyectado a USD 1.43T en 2030.
-
-SAM: Web3 developer platforms.
-
-Benchmark público: USD 4.8B en 2024, proyectado a USD 38.5B en 2033.
-
-SOM: por definir.
-
-Wedge inicial: developer appliance + enterprise distribution.
-
-## Mercado, lectura correcta
-
-Estos son benchmarks de mercado, no proyecciones de ingresos de Claw1.
-
-Fuentes públicas: Grand View Research y MarketIntelo.
-
-⚠️ *Esto no es una declaración oficial y podría cambiar por completo.*
+Cada módulo se activa independientemente sobre el infra core existente.
 
 ## Modelo
 
-El core local debe ser fácil de probar:
+Software abierto para adopción. Distribución enterprise para operación.
 
-- Deploy local.
-- ERC-3643.
-- ICTT workbench.
-- Explorer básico.
-- Evidencia local.
+| Tier | Descripción |
+|------|-------------|
+| Dev appliance | Deploy local libre — adopción sin fricción |
+| Enterprise | Templates multi-nodo, compliance presets, SLAs, HSM/Vault |
 
-## Modelo enterprise
-
-La distribución enterprise es donde vive el valor:
-
-- Releases certificados.
-- Templates multi-nodo.
-- Compliance presets.
-- SLAs.
-- Integraciones HSM/Vault.
-- Upgrades gestionados.
-
-## El patrón Red Hat
-
-Software abierto para adopción. Distribución confiable para operación empresarial.
+El patrón Red Hat aplicado a infraestructura financiera regulada.
 
 ⚠️ *Esto no es una declaración oficial y podría cambiar por completo.*
 
-## Competencia
+## Regulación como arquitectura
 
-Alchemy y Tenderly son excelentes para cadenas públicas.
+No prometemos cumplimiento legal.
 
-Claw1 apunta a otra superficie:
+Construimos el foundation que lo hace posible:
 
-- L1s que la empresa despliega.
-- Compliance desde genesis.
-- Contratos regulados como parte del flujo.
-- ICTT como prueba central.
-- Observabilidad ligada al run.
+- Cadena permisionada → solo wallets verificadas pueden participar
+- T-REX IdentityRegistry → KYC on-chain nativo
+- Atestiguación on-chain → evidencia auditable e independiente
+- Destroy limpio → sin recursos fantasma ni evidencia incompleta
 
-No reemplaza a Avalanche. Hace que Avalanche sea operable para equipos regulados.
-
-## La wedge
-
-Primero: developer appliance local.
-
-Luego: distribución enterprise multi-nodo.
-
-Después:
-
-- Compliance profiles.
-- Managed upgrades.
-- Evidence bundles.
-- Simulación.
-- Replay.
-- Explorer privado.
-
-## La promesa
-
-- Despliega la red.
-- Emite el activo regulado.
-- Cruza la transferencia.
-- Ve el trace.
-- Prueba qué pasó.
-- Repite el flujo.
+**Regulación en mente desde day zero. No desde el compliance team.**
 
 ## Repo
 

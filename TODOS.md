@@ -90,6 +90,14 @@
 
 - [ ] **Validate `warpConfig.quorumNumerator`** — `bootstrap.sh` sets `quorumNumerator: 0` which may mean "no quorum required" (accepts all warp messages) or "nothing passes" depending on Avalanche version. Fix: set it to `67` (≈2/3) or document the tradeoff. *(OCI only)*
 
+## P2 — Post-lanzamiento (ICTT bridge)
+
+- [ ] **`deployLocalICTT()`: auto-detect C_CHAIN_BLOCKCHAIN_ID** — The local Avalanche C-chain blockchain ID changes every devnet restart. Instead of requiring manual env var, query it via `POST /ext/info { method: "info.getBlockchainID", params: { alias: "C" } }` against the local platform API. Already implemented but broken: `cChainBlockchainID()` in `cli/deploy.go` always returns error — fix or delete. Context: blocks one-command local ICTT deploy.
+
+- [ ] **`DeployICTT.s.sol`: real Teleporter messenger for TeleporterRegistry** — Current `forge create` flow deploys TeleporterRegistry with the deployer EOA as `protocolAddress`. This won't route real ICM messages. Fix: deploy an actual TeleporterMessenger contract and use its address in the ProtocolRegistryEntry. Reference: ava-labs/teleporter releases. Needed before ICTT bridge can actually send cross-chain messages.
+
+- [ ] **`claw1 tx send` subcommand** — Demo design doc references `claw1 tx send --token equity-token --to <wallet> --amount 100`. Command does not exist in CLI. Implement or replace with `cast send` instructions in the demo guide. Needed before recording a live ICTT + T-REX demo flow.
+
 ## P3 — Post-launch roadmap
 
 - [ ] **Replace `avalanche-cli` wrapping with P-Chain SDK** — `l1_resource.go` currently shells out to `avalanche blockchain create/deploy`. Post-launch: use Go P-Chain SDK directly for proper Terraform resource lifecycle. Effort: ~3-4 days human / ~2h CC.

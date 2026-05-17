@@ -1,10 +1,10 @@
 - **nombre del proyecto:** Claw1
 
 - **descripcion corta:**
-  Infraestructura de aprovisionamiento atestiguada on-chain que vincula recursos cloud gestionados por Terraform a atestiguaciones en blockchain mediante un provider custom y CLI.
+  Infraestructura para desplegar L1s permisionadas de Avalanche con ERC-3643 / T-REX — compliance GAFI codificado en el protocolo, no declarado en un slide. Un comando. Toda la pila.
 
 - **descripcion completa:**
-  Claw1 es un sistema de aprovisionamiento de infraestructura cloud con atestiguación on-chain. Utiliza Terraform (HCL) para declarar y desplegar recursos cloud, y un provider custom (`terraform-provider-claw1`) junto con contratos Solidity para registrar atestiguaciones on-chain de dichos recursos. Incluye un CLI para orquestar el flujo end-to-end, contratos testeados con Foundry, y utilidades de demo con estado local en `~/.claw1/{name}/network.json`.
+  Claw1 provisiona una L1 permisionada de Avalanche con contratos de identidad y cumplimiento (ERC-3643 / T-REX) mediante Terraform y un CLI con atestiguación on-chain. Las IFCs y emisores regulados obtienen una cadena donde las restricciones de transferencia son reglas del protocolo: solo billeteras verificadas en el IdentityRegistry pueden recibir tokens. El mismo `terraform apply` que corre en local despliega en Oracle Cloud Infrastructure — único Terraform provider para Avalanche + OCI. Incluye destroy limpio con inventario verificado, evidencia local del run, y un wizard regulatorio que no requiere MetaMask ni Blockscout.
 
 - **tracks:**
   - [x] Tokenización de Activos: Tokeniza activos financieros reales — deuda, equity, facturas o bienes raíces — sobre Avalanche para hacerlos más accesibles y líquidos en Latam.
