@@ -165,35 +165,41 @@ func (m deployModel) Update(msg tea.Msg) (deployModel, tea.Cmd) {
 func (m deployModel) View(width int) string {
 	var b strings.Builder
 
-	targetLabel := "OCI DEPLOYMENT"
+	targetLabel := "PRODUCTION TARGET"
+	topology := "OCI VM + Avalanche L1"
 	if m.cfg.target == targetLocal {
-		targetLabel = "LOCAL DEPLOYMENT"
+		targetLabel = "DEVELOPER APPLIANCE"
+		topology = "local Avalanche devnet + custom L1"
 	}
-	b.WriteString(styleHeader.Render("CLAW1") + "  " +
-		styleDim.Render(targetLabel) + "\n\n")
+	b.WriteString(styleBrand.Render("CLAW1") + "  " +
+		styleHeader.Render("DEPLOY RUN") + "  " +
+		statusPill(targetLabel, blue) + "\n")
+	b.WriteString(styleDim.Render("  "+topology+"    compliance: ERC-3643 / T-REX    evidence: local") + "\n\n")
 
 	// Steps
+	b.WriteString(styleSectionTitle.Render("RUNBOOK") + "\n")
 	for i, s := range m.steps {
+		index := styleDim.Render(fmt.Sprintf("%02d", i+1))
 		switch s.status {
 		case stepWaiting:
-			b.WriteString("  " + circle() + "  " + styleDim.Render(s.name) +
-				styleDim.Render("   ─────────────────  waiting") + "\n")
+			b.WriteString("  " + index + "  " + circle() + "  " + styleDim.Render(fmt.Sprintf("%-32s", s.name)) +
+				styleDim.Render("waiting") + "\n")
 		case stepRunning:
 			elapsed := time.Since(s.started).Round(time.Second)
-			b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render(s.name) +
-				styleDim.Render(fmt.Sprintf("   running  %s", elapsed)) + "\n")
+			b.WriteString("  " + index + "  " + dot(yellow) + "  " + styleYellow.Render(fmt.Sprintf("%-32s", s.name)) +
+				styleYellow.Render(fmt.Sprintf("running %s", elapsed)) + "\n")
 		case stepDone:
-			b.WriteString("  " + dot(green) + "  " + styleGreen.Render(s.name) +
-				styleDim.Render(fmt.Sprintf("   done  %s", s.elapsed.Round(time.Second))) + "\n")
+			b.WriteString("  " + index + "  " + dot(green) + "  " + styleGreen.Render(fmt.Sprintf("%-32s", s.name)) +
+				styleDim.Render(fmt.Sprintf("done %s", s.elapsed.Round(time.Second))) + "\n")
 		case stepFailed:
-			b.WriteString("  " + dot(red) + "  " + styleRed.Render(s.name) +
-				styleDim.Render("   FAILED") + "\n")
+			b.WriteString("  " + index + "  " + dot(red) + "  " + styleRed.Render(fmt.Sprintf("%-32s", s.name)) +
+				styleRed.Render("failed") + "\n")
 		}
-		_ = i
 	}
 
 	// Log panel
-	b.WriteString("\n" + styleSectionTitle.Render("LOG") + "\n")
+	b.WriteString("\n" + styleSectionTitle.Render("EVENT STREAM") + "\n")
+	b.WriteString(rule(width-6) + "\n")
 	logHeight := 12
 	start := 0
 	if len(m.logs) > logHeight {
@@ -215,11 +221,11 @@ func (m deployModel) View(width int) string {
 	}
 
 	if m.done && m.err == nil {
-		b.WriteString("\n" + styleGreen.Render("  ✓ Deployment complete — press Enter to view Sovereignty Receipt") + "\n")
+		b.WriteString("\n" + statusPill("DEPLOYED", green) + styleGreen.Render("  Press Enter for dashboard: explorer, contracts, wallets, evidence") + "\n")
 	}
 
 	if m.err != nil {
-		b.WriteString(styleKeys.Render("\n  [Q/Esc] exit   Run scripts/reset.sh before retrying if Terraform state looks stale"))
+		b.WriteString(styleKeys.Render("\n  [Q/Esc] exit   Retry after resolving the failure above. Use scripts/reset.sh if Terraform state is stale."))
 	} else {
 		b.WriteString(styleKeys.Render("\n  [Q/Esc] exit"))
 	}

@@ -1,24 +1,39 @@
 package main
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"strings"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 var (
-	green  = lipgloss.Color("#00FF88")
-	dim    = lipgloss.Color("#666666")
-	text   = lipgloss.Color("#CCCCCC")
-	yellow = lipgloss.Color("#FFCC00")
-	red    = lipgloss.Color("#FF4444")
-	blue   = lipgloss.Color("#4499FF")
+	green  = lipgloss.Color("#3DFFB5")
+	dim    = lipgloss.Color("#6F7782")
+	text   = lipgloss.Color("#D8DEE9")
+	yellow = lipgloss.Color("#FFD166")
+	red    = lipgloss.Color("#FF5C7A")
+	blue   = lipgloss.Color("#7DB7FF")
 	white  = lipgloss.Color("#FFFFFF")
+	cyan   = lipgloss.Color("#7EE7FF")
+	ink    = lipgloss.Color("#101820")
 
 	styleBox = lipgloss.NewStyle().
-			Border(lipgloss.RoundedBorder()).
+			Border(lipgloss.NormalBorder()).
 			BorderForeground(dim).
 			Padding(0, 1)
 
 	styleHeader = lipgloss.NewStyle().
-			Foreground(green).
+			Foreground(white).
 			Bold(true)
+
+	styleBrand = lipgloss.NewStyle().
+			Foreground(ink).
+			Background(green).
+			Bold(true).
+			Padding(0, 1)
+
+	styleKicker = lipgloss.NewStyle().
+			Foreground(cyan)
 
 	styleLabel = lipgloss.NewStyle().
 			Foreground(dim).
@@ -49,7 +64,7 @@ var (
 				Foreground(dim)
 
 	styleSectionTitle = lipgloss.NewStyle().
-				Foreground(dim).
+				Foreground(white).
 				Bold(true)
 
 	styleTab = lipgloss.NewStyle().
@@ -80,4 +95,20 @@ func dot(color lipgloss.Color) string {
 
 func circle() string {
 	return styleDim.Render("○")
+}
+
+func statusPill(label string, color lipgloss.Color) string {
+	return lipgloss.NewStyle().
+		Foreground(ink).
+		Background(color).
+		Bold(true).
+		Padding(0, 1).
+		Render(label)
+}
+
+func rule(width int) string {
+	if width < 12 {
+		width = 12
+	}
+	return styleDim.Render(strings.Repeat("─", width))
 }

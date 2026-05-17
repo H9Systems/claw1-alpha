@@ -235,56 +235,65 @@ En modo programático, un dry-run OCI sin `--yes` termina con código `1` despu�
 ### Pantalla 1: Asistente con pestañas
 
 ```
-  CLAW1  Regulated asset appliance
-  Deploy a permissioned L1 with ERC-3643 transfer controls.
+  CLAW1  PRIVATE L1 CONTROL PLANE  open-core stack for regulated Avalanche deployments
+  Ship a sovereign chain with compliance, observability, and evidence in one run.
 
-  [Deploy]    Compliance    Operations    OCI Config
+  [Mission]    Compliance    Operations    OCI
 
-  DEPLOY TARGET
-  › [ ○  Oracle Cloud Infrastructure  cloud L1 with OCI VM ]
-    [ ●  Local devnet                 single-machine demo appliance ]
+  MISSION
+  │  Use case               issue regulated debt tokens to verified wallets
+  │  Why L1                 compliance boundary stays native, liquidity can still route outward
+  │  Demo proof             verified transfer passes; unknown wallet is rejected
 
-  WHAT DEPLOY DOES
-  ● 1. Provision L1       Terraform creates the Avalanche L1
-  ● 2. Deploy T-REX       token, registry, KYC issuer
-  ● 3. Prove KYC gate     verified succeeds, unknown must revert
-  ● 4. Evidence           addresses and tx hashes stay local
+  DEPLOYMENT RAIL
+  › [ ●  Developer appliance          local L1, fast repeatable demo ]
+    [ ○  Production target            OCI VM, same Terraform spine ]
+
+  RUNBOOK
+  │  1. Provision          Terraform declares and applies the L1
+  │  2. Compliance         ERC-3643, IdentityRegistry, KYC issuer
+  │  3. Observe            RPC, contracts, explorer, wallet surface
+  │  4. Preserve           local evidence bundle and deploy receipt
 
   [ Start deployment ]
 
   [←/→] tabs   [↑/↓] select   [Enter] activate   [Q] quit
 ```
 
-- **[←→]** cambia entre Deploy, Compliance, Operations y OCI Config
-- **[↑↓]** selecciona target o acción en Deploy
+- **[←→]** cambia entre Mission, Compliance, Operations y OCI
+- **[↑↓]** selecciona rail o acción en Mission
 - **[Enter]** activa el target seleccionado o inicia el despliegue
-- **[↑↓]** navega campos OCI cuando la pestaña OCI Config está activa
+- **[↑↓]** navega campos OCI cuando la pestaña OCI está activa
 
 ### Pantalla 2: Progreso del despliegue
 
 Muestra los pasos en tiempo real con logs en streaming. Para OCI:
 
 ```
-  ● Write credentials         done  2s
-  ● Provision OCI infra       running  1m23s
-  ○ Bootstrap Avalanche L1    waiting
-  ○ Deploy compliance contracts  waiting
+  CLAW1  DEPLOY RUN  PRODUCTION TARGET
+  OCI VM + Avalanche L1    compliance: ERC-3643 / T-REX    evidence: local
+
+  RUNBOOK
+  01  ●  Write credentials              done 2s
+  02  ●  Provision OCI infrastructure   running 1m23s
+  03  ○  Bootstrap Avalanche L1         waiting
+  04  ○  Deploy compliance contracts    waiting
 ```
 
 Para local:
 ```
-  ● Build Terraform provider  done  45s
-  ● Deploy Avalanche L1       running  1m12s
-  ○ Deploy compliance contracts  waiting
-  ○ Deploy ERC-3643 suite     waiting
-  ○ Run ICTT bridge workbench waiting
+  01  ●  Build Terraform provider       done 45s
+  02  ●  Deploy Avalanche L1            running 1m12s
+  03  ○  Deploy compliance contracts    waiting
+  04  ○  Deploy ERC-3643 suite          waiting
+  05  ○  Run ICTT bridge workbench      waiting
 ```
 
 Si ICTT no tiene sus prerequisitos locales (`C_CHAIN_BLOCKCHAIN_ID`, `L1_TELEPORTER_REGISTRY`), el deploy lo reporta como workbench pendiente y conserva la L1 + ERC-3643 como flujo usable. No marca un bridge falso como exitoso.
 
-### Pantalla 3: Sovereignty Receipt
+### Pantalla 3: L1 Operations Dashboard
 
-Una vez completado el despliegue, presiona **Enter** para ver el panel de cumplimiento en vivo. El panel tiene pestañas para Overview, Explorer, Contracts y Wallets:
+Una vez completado el despliegue, presiona **Enter** para ver el dashboard operativo. Tiene pestañas para Overview, Explorer, Contracts y Wallets:
 
 ```bash
 claw1 receipt          # local

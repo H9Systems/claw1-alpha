@@ -227,14 +227,14 @@ func (m receiptModel) Update(msg tea.Msg) (receiptModel, tea.Cmd) {
 func (m receiptModel) View(width int) string {
 	var b strings.Builder
 
-	// Live badge
-	liveStr := " " + dot(green) + " " + styleGreen.Render("LIVE")
-	title := styleHeader.Render("CLAW1") + "  " + styleDim.Render("SOVEREIGNTY RECEIPT")
+	liveStr := " " + statusPill("LIVE", green)
+	title := styleBrand.Render("CLAW1") + "  " + styleHeader.Render("L1 OPERATIONS DASHBOARD")
 	padding := width - 4 - lipgloss.Width(title) - lipgloss.Width(liveStr) - 4
 	if padding < 0 {
 		padding = 0
 	}
-	b.WriteString(title + strings.Repeat(" ", padding) + liveStr + "\n\n")
+	b.WriteString(title + strings.Repeat(" ", padding) + liveStr + "\n")
+	b.WriteString(styleDim.Render("  private chain observability, compliance posture, explorer, wallets, evidence") + "\n\n")
 
 	if m.net == nil {
 		b.WriteString(styleYellow.Render("  Waiting for network.json...") + "\n")
@@ -292,7 +292,7 @@ func (m receiptModel) overviewView(width int) string {
 	b.WriteString(row("NETWORK", m.net.Name, "CHAIN", fmt.Sprintf("%d", m.net.ChainID)))
 	b.WriteString(row("VALIDATORS", validatorsStr(m.net), "BLOCK", blockStr))
 	if m.target == targetLocal {
-		b.WriteString(row("TOPOLOGY", "Developer appliance", "PROD TARGET", "multi-node L1"))
+		b.WriteString(row("RAIL", "Developer appliance", "PROD PATH", "OCI multi-node L1"))
 	}
 
 	if m.net.OCI != nil {
@@ -308,7 +308,7 @@ func (m receiptModel) overviewView(width int) string {
 	kycStatus := dot(yellow) + " " + styleYellow.Render("DEMO MODE")
 	kycLabel := "KYC Verifier"
 	b.WriteString(row(kycLabel, kycStatus, "TxAllowList", dot(green)+" "+styleGreen.Render("ACTIVE")))
-	b.WriteString(row("Jurisdiction", jurisdictionStr(m.net), "Enforcement", styleGreen.Render("LAYER 1")))
+	b.WriteString(row("Asset pattern", "verified debt token", "Enforcement", styleGreen.Render("LAYER 1")))
 
 	// Contracts
 	b.WriteString("\n" + styleSectionTitle.Render("DEPLOYED CONTRACTS") + "\n")
@@ -330,16 +330,16 @@ func (m receiptModel) overviewView(width int) string {
 		b.WriteString(styleDim.Render("  No contracts found in network.json") + "\n")
 	}
 
-	b.WriteString("\n" + styleSectionTitle.Render("INTEROPERABILITY TRACE") + "\n")
+	b.WriteString("\n" + styleSectionTitle.Render("LIQUIDITY PATH") + "\n")
 	home := findContract(m.net, "ICTTTokenHome")
 	remote := findContract(m.net, "ICTTTokenRemote")
 	if home != "" && remote != "" {
 		b.WriteString("  " + dot(green) + "  " + styleValue.Render("TokenHome") + "  " + styleGreen.Render(shortAddr(home)) + "\n")
 		b.WriteString("  " + dot(green) + "  " + styleValue.Render("TokenRemote") + " " + styleGreen.Render(shortAddr(remote)) + "\n")
-		b.WriteString(styleDim.Render("  Trace target: C-chain source tx -> Teleporter message -> L1 mint/receive") + "\n")
+		b.WriteString(styleDim.Render("  C-chain source tx -> Teleporter message -> L1 receive") + "\n")
 	} else {
-		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render("Bridge workbench pending") + "\n")
-		b.WriteString(styleDim.Render("  Set local Teleporter env and rerun with ICTT enabled to deploy TokenHome/TokenRemote.") + "\n")
+		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render("ICTT workbench pending") + "\n")
+		b.WriteString(styleDim.Render("  Compliance L1 is deployed. Bridge path is separate and can be enabled later.") + "\n")
 	}
 
 	// RPC URL (truncated)
@@ -360,13 +360,13 @@ func (m receiptModel) explorerView() string {
 	}
 	b.WriteString(styleSectionTitle.Render("BLOCK EXPLORER") + "\n")
 	b.WriteString(row("Blockscout UI", "http://localhost:3001", "STATUS", status))
-	b.WriteString(row("Backend API", "http://localhost:4000", "SOURCE", "docker/blockscout"))
+	b.WriteString(row("Backend API", "http://localhost:4000", "Purpose", "generic chain inspection"))
 	b.WriteString("\n")
 	b.WriteString(styleSectionTitle.Render("ACTIONS") + "\n")
 	b.WriteString("  " + styleButtonActive.Render("[ S  Start Blockscout ]") + "\n")
 	b.WriteString("  " + styleButton.Render("[ O  Open explorer ]") + "\n")
 	b.WriteString("\n")
-	b.WriteString(styleDim.Render("  Blockscout starts in Docker and indexes the local L1 from network.json.") + "\n")
+	b.WriteString(styleDim.Render("  The Claw1 dashboard is the critical path. Blockscout is optional generic inspection.") + "\n")
 	b.WriteString(styleKeys.Render("\n  [S] start   [O] open   [←/→] tabs"))
 	return b.String()
 }
@@ -380,7 +380,7 @@ func (m receiptModel) contractsView() string {
 	if len(m.net.Contracts) == 0 {
 		b.WriteString(styleDim.Render("  No contracts found in network.json") + "\n")
 	}
-	b.WriteString("\n" + styleSectionTitle.Render("INSPECT") + "\n")
+	b.WriteString("\n" + styleSectionTitle.Render("SCRIPTABLE INSPECTION") + "\n")
 	b.WriteString(styleDim.Render("  claw1 inspect --local") + "\n")
 	b.WriteString(styleDim.Render("  claw1 inspect --local --json") + "\n")
 	return b.String()
@@ -389,7 +389,7 @@ func (m receiptModel) contractsView() string {
 func (m receiptModel) walletsView() string {
 	var b strings.Builder
 	wallets := demoWallets()
-	b.WriteString(styleSectionTitle.Render("DEMO WALLETS") + "\n")
+	b.WriteString(styleSectionTitle.Render("WALLET MANAGEMENT") + "\n")
 	for i, w := range wallets {
 		prefix := "  "
 		body := styleValue.Render(fmt.Sprintf("%-12s", w.Name)) + styleGreen.Render(w.Address) + "  " + styleDim.Render(w.Unsafe)
