@@ -142,7 +142,22 @@ Requiere Go 1.21+.
 ```bash
 claw1 demo
 # Debe imprimir el resultado del preflight del modo demo.
+
+claw1 version
+# Muestra la versión del binario, ej.: claw1 v0.1.0
 ```
+
+### Actualizar a la última versión
+
+```bash
+claw1 upgrade
+# Descarga la última release de GitHub y reemplaza el binario en uso.
+
+claw1 upgrade --json
+# Emite eventos JSONL estructurados.
+```
+
+Si ya estás en la última versión, `upgrade` imprime "already up to date" y sale con código 0. Para versiones `dev` (compiladas desde fuente sin tag), siempre intenta actualizar.
 
 ---
 
@@ -198,6 +213,8 @@ Los mismos workflows corren sin pantalla interactiva para pruebas, scripts y dem
 ./cli/claw1 wallet list --json
 ./cli/claw1 destroy --oci --dry-run
 ./cli/claw1 destroy --oci --yes --json
+./cli/claw1 upgrade --json
+./cli/claw1 version
 ```
 
 El modo `--json` emite JSONL estable con `run_id`, `workflow`, `step`, `status`, `resource_id`, `chain_id`, `tx_hash`, `message_id`, `error_code` y comandos manuales cuando aplica.

@@ -141,6 +141,11 @@ func main() {
 			os.Exit(runWalletCLI(os.Args[2:]))
 		case "demo":
 			os.Exit(runDemoCLI(repoRoot, os.Args[2:]))
+		case "upgrade":
+			os.Exit(runUpgradeCLI(repoRoot, os.Args[2:]))
+		case "version", "--version", "-v":
+			fmt.Println("claw1 " + version)
+			os.Exit(0)
 		}
 	}
 

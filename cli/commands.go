@@ -35,8 +35,13 @@ func parseCommonFlags(args []string) (cliOptions, []string, error) {
 	fs.StringVar(&opt.evidenceBucket, "evidence-bucket", "", "explicit OCI Object Storage bucket for evidence")
 	oci := fs.Bool("oci", false, "target OCI deployment")
 	local := fs.Bool("local", false, "target local deployment")
+	fv := fs.Bool("version", false, "print version and exit")
 	if err := fs.Parse(args); err != nil {
 		return opt, nil, err
+	}
+	if *fv {
+		fmt.Println("claw1 " + version)
+		os.Exit(0)
 	}
 	if *oci {
 		opt.target = targetOCI
@@ -60,6 +65,8 @@ func normalizeCommonFlags(args []string) []string {
 				flags = append(flags, args[i+1])
 				i++
 			}
+		case "--version", "-v":
+			flags = append(flags, args[i])
 		default:
 			rest = append(rest, args[i])
 		}
