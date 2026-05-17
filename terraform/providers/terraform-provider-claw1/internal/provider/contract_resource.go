@@ -204,13 +204,13 @@ func (r *contractResource) deployContract(ctx context.Context, plan contractReso
 		contractArg,
 		"--rpc-url", plan.RPCURL.ValueString(),
 		"--broadcast",
+		"--private-key", plan.DeployerKey.ValueString(),
 	}
 	args = append(args, rootArgs...)
 	if len(ctorArgs) > 0 {
 		args = append(args, "--constructor-args")
 		args = append(args, ctorArgs...)
 	}
-	args = append(args, "--private-key", plan.DeployerKey.ValueString())
 
 	cmd := exec.CommandContext(ctx, "forge", args...)
 	cmd.Env = os.Environ()
