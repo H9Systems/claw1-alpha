@@ -241,9 +241,8 @@ In programmatic mode, an OCI dry-run without `--yes` exits with code `1` after p
   [Deploy]    Compliance    Operations    OCI Config
 
   DEPLOY TARGET
-  ○ Oracle Cloud Infrastructure (OCI)
-  ● Local (on-prem devnet)
-  [1] OCI   [2] Local
+  › [ ○  Oracle Cloud Infrastructure  cloud L1 with OCI VM ]
+    [ ●  Local devnet                 single-machine demo appliance ]
 
   WHAT DEPLOY DOES
   ● 1. Provision L1       Terraform creates the Avalanche L1
@@ -251,14 +250,15 @@ In programmatic mode, an OCI dry-run without `--yes` exits with code `1` after p
   ● 3. Prove KYC gate     verified succeeds, unknown must revert
   ● 4. Evidence           addresses and tx hashes stay local
 
-  [Tab/←/→] switch tab   [1] OCI   [2] Local   [D] deploy   [Q] quit
+  [ Start deployment ]
+
+  [←/→] tabs   [↑/↓] select   [Enter] activate   [Q] quit
 ```
 
-- **[Tab]** / **[←→]** switches between Deploy, Compliance, Operations, and OCI Config
-- **[1]** selects OCI — use the OCI Config tab for credentials
-- **[2]** selects Local — no credentials needed
+- **[←→]** switches between Deploy, Compliance, Operations, and OCI Config
+- **[↑↓]** selects target or action in Deploy
+- **[Enter]** activates the selected target or starts deployment
 - **[↑↓]** navigates OCI fields when the OCI Config tab is active
-- **[D]** validates and starts deployment
 
 ### Screen 2: Deploy progress
 

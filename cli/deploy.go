@@ -208,7 +208,10 @@ func (m deployModel) View(width int) string {
 	}
 
 	if m.err != nil {
-		b.WriteString("\n" + styleRed.Render("  ✗ "+m.err.Error()) + "\n")
+		b.WriteString("\n" + styleSectionTitle.Render("FAILURE") + "\n")
+		b.WriteString("  " + styleRed.Render("Deploy stopped") + "\n")
+		b.WriteString(styleDim.Render("  "+failureHint(m.err.Error())) + "\n")
+		b.WriteString(styleDim.Render("  Raw error: "+oneLine(m.err.Error(), width-15)) + "\n")
 	}
 
 	if m.done && m.err == nil {
@@ -218,6 +221,30 @@ func (m deployModel) View(width int) string {
 	b.WriteString(styleKeys.Render("\n  [Q] quit"))
 
 	return styleBox.Width(width - 4).Render(b.String())
+}
+
+func failureHint(err string) string {
+	lower := strings.ToLower(err)
+	switch {
+	case strings.Contains(lower, "error accessing local wallet") ||
+		strings.Contains(lower, "private key or mnemonic"):
+		return "Foundry did not receive a deployer key. Rebuild the provider, then retry deploy."
+	case strings.Contains(lower, "connection refused"):
+		return "The L1 RPC is not ready or the tunnel is down. Reset the demo and retry."
+	case strings.Contains(lower, "network.json"):
+		return "The deploy state file is missing or malformed. Run scripts/reset.sh, then deploy again."
+	default:
+		return "Check the last log lines above. The deploy failed closed before continuing."
+	}
+}
+
+func oneLine(s string, limit int) string {
+	s = strings.ReplaceAll(s, "\n", " ")
+	s = strings.Join(strings.Fields(s), " ")
+	if limit > 0 && len(s) > limit {
+		return s[:limit-1] + "…"
+	}
+	return s
 }
 
 // ── Orchestration ─────────────────────────────────────────────────────────────
@@ -391,6 +418,7 @@ func (m *deployModel) deployOCIContracts(activeRPC string) error {
 		"--root", contractsDir,
 		"--rpc-url", activeRPC,
 		"--broadcast",
+		"--private-key", deployer,
 		"--constructor-args", chainID, ewoqAddr,
 		"0x0000000000000000000000000000000000000000", "0", "demo",
 	)
@@ -410,6 +438,7 @@ func (m *deployModel) deployOCIContracts(activeRPC string) error {
 		"--root", contractsDir,
 		"--rpc-url", activeRPC,
 		"--broadcast",
+		"--private-key", deployer,
 		"--constructor-args", "0x0000000000000000000000000000000000000000", "0",
 	)
 	if err != nil {

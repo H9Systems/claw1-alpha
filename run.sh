@@ -127,6 +127,7 @@ if [ "$OCI_MODE" = true ]; then
     --root "$CONTRACTS_DIR" \
     --rpc-url "$ACTIVE_RPC" \
     --broadcast \
+    --private-key "$DEPLOYER_KEY" \
     --constructor-args "$CHAIN_ID" "$EWOQ_ADDR" "0x0000000000000000000000000000000000000000" "0" "demo" \
     2>&1)
   echo "$CR_OUT"
@@ -138,6 +139,7 @@ if [ "$OCI_MODE" = true ]; then
     --root "$CONTRACTS_DIR" \
     --rpc-url "$ACTIVE_RPC" \
     --broadcast \
+    --private-key "$DEPLOYER_KEY" \
     --constructor-args "0x0000000000000000000000000000000000000000" "0" \
     2>&1)
   echo "$DD_OUT"

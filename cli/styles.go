@@ -62,6 +62,13 @@ var (
 			Underline(true).
 			Padding(0, 2)
 
+	styleButton = lipgloss.NewStyle().
+			Foreground(text)
+
+	styleButtonActive = lipgloss.NewStyle().
+				Foreground(green).
+				Bold(true)
+
 	styleKeys = lipgloss.NewStyle().
 			Foreground(dim).
 			MarginTop(1)

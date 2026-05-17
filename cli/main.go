@@ -60,8 +60,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.page != pageDeploy {
 				return m, tea.Quit
 			}
-		case "d", "D":
-			if m.page == pageWizard {
+		case "enter":
+			if m.page == pageWizard && m.wizard.activate() {
 				cfg, err := m.wizard.validate()
 				if err != nil {
 					m.wizard.err = err.Error()
@@ -72,7 +72,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				m.page = pageDeploy
 				return m, m.deploy.start()
 			}
-		case "enter":
 			if m.page == pageDeploy && m.deploy.done && m.deploy.err == nil {
 				m.receipt = newReceiptModel(m.deploy.cfg.target, m.repoRoot)
 				m.page = pageReceipt

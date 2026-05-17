@@ -210,10 +210,10 @@ func (r *contractResource) deployContract(ctx context.Context, plan contractReso
 		args = append(args, "--constructor-args")
 		args = append(args, ctorArgs...)
 	}
+	args = append(args, "--private-key", plan.DeployerKey.ValueString())
 
 	cmd := exec.CommandContext(ctx, "forge", args...)
-	// Pass key via env var to avoid exposure in ps aux.
-	cmd.Env = append(os.Environ(), "FOUNDRY_ETH_PRIVATE_KEY="+plan.DeployerKey.ValueString())
+	cmd.Env = os.Environ()
 	output, err := cmd.CombinedOutput()
 
 	if logPath != "" {

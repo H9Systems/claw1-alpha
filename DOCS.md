@@ -241,9 +241,8 @@ En modo programático, un dry-run OCI sin `--yes` termina con código `1` despu�
   [Deploy]    Compliance    Operations    OCI Config
 
   DEPLOY TARGET
-  ○ Oracle Cloud Infrastructure (OCI)
-  ● Local (on-prem devnet)
-  [1] OCI   [2] Local
+  › [ ○  Oracle Cloud Infrastructure  cloud L1 with OCI VM ]
+    [ ●  Local devnet                 single-machine demo appliance ]
 
   WHAT DEPLOY DOES
   ● 1. Provision L1       Terraform creates the Avalanche L1
@@ -251,14 +250,15 @@ En modo programático, un dry-run OCI sin `--yes` termina con código `1` despu�
   ● 3. Prove KYC gate     verified succeeds, unknown must revert
   ● 4. Evidence           addresses and tx hashes stay local
 
-  [Tab/←/→] switch tab   [1] OCI   [2] Local   [D] deploy   [Q] quit
+  [ Start deployment ]
+
+  [←/→] tabs   [↑/↓] select   [Enter] activate   [Q] quit
 ```
 
-- **[Tab]** / **[←→]** cambia entre Deploy, Compliance, Operations y OCI Config
-- **[1]** selecciona OCI — usa la pestaña OCI Config para credenciales
-- **[2]** selecciona Local — no se necesitan credenciales
+- **[←→]** cambia entre Deploy, Compliance, Operations y OCI Config
+- **[↑↓]** selecciona target o acción en Deploy
+- **[Enter]** activa el target seleccionado o inicia el despliegue
 - **[↑↓]** navega campos OCI cuando la pestaña OCI Config está activa
-- **[D]** valida y comienza el despliegue
 
 ### Pantalla 2: Progreso del despliegue
 

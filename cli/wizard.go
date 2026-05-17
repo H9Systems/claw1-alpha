@@ -33,13 +33,14 @@ type deployConfig struct {
 }
 
 type wizardModel struct {
-	target     deployTarget
-	activeTab  int
-	focus      int
-	inputs     []textinput.Model
-	err        string
-	repoRoot   string
-	enableICTT bool
+	target       deployTarget
+	activeTab    int
+	deployCursor int
+	focus        int
+	inputs       []textinput.Model
+	err          string
+	repoRoot     string
+	enableICTT   bool
 }
 
 const (
@@ -48,6 +49,13 @@ const (
 	tabOperations
 	tabOCI
 	numTabs
+)
+
+const (
+	deployCursorOCI = iota
+	deployCursorLocal
+	deployCursorStart
+	numDeployCursors
 )
 
 const (
@@ -97,38 +105,27 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "tab", "right", "l":
+		case "tab", "right":
 			m.activeTab = (m.activeTab + 1) % numTabs
 			m.syncFocus()
-		case "shift+tab", "left", "h":
+		case "shift+tab", "left":
 			m.activeTab = (m.activeTab - 1 + numTabs) % numTabs
 			m.syncFocus()
-		case "down", "j":
-			if m.activeTab == tabOCI && m.target == targetOCI {
+		case "down":
+			switch {
+			case m.activeTab == tabDeploy:
+				m.deployCursor = (m.deployCursor + 1) % numDeployCursors
+			case m.activeTab == tabOCI && m.target == targetOCI:
 				m.focus = (m.focus + 1) % numInputs
 			}
 			m.syncFocus()
-		case "up", "k":
-			if m.activeTab == tabOCI && m.target == targetOCI {
+		case "up":
+			switch {
+			case m.activeTab == tabDeploy:
+				m.deployCursor = (m.deployCursor - 1 + numDeployCursors) % numDeployCursors
+			case m.activeTab == tabOCI && m.target == targetOCI:
 				m.focus = (m.focus - 1 + numInputs) % numInputs
 			}
-			m.syncFocus()
-		case "1":
-			m.target = targetOCI
-			m.syncFocus()
-		case "2":
-			m.target = targetLocal
-			for i := range m.inputs {
-				m.inputs[i].Blur()
-			}
-		case "d":
-			m.activeTab = tabDeploy
-			m.syncFocus()
-		case "c":
-			m.activeTab = tabCompliance
-			m.syncFocus()
-		case "o":
-			m.activeTab = tabOperations
 			m.syncFocus()
 		}
 	}
@@ -195,6 +192,23 @@ func (m wizardModel) validate() (deployConfig, error) {
 	}, nil
 }
 
+func (m *wizardModel) activate() bool {
+	if m.activeTab != tabDeploy {
+		return false
+	}
+	switch m.deployCursor {
+	case deployCursorOCI:
+		m.target = targetOCI
+		m.syncFocus()
+	case deployCursorLocal:
+		m.target = targetLocal
+		m.syncFocus()
+	case deployCursorStart:
+		return true
+	}
+	return false
+}
+
 func (m wizardModel) View(width int) string {
 	var b strings.Builder
 	contentWidth := width - 8
@@ -223,7 +237,7 @@ func (m wizardModel) View(width int) string {
 		b.WriteString("\n" + styleRed.Render("  ✗ "+m.err) + "\n")
 	}
 
-	b.WriteString(styleKeys.Render("\n  [Tab/←/→] switch tab   [1] OCI   [2] Local   [D] deploy   [Q] quit"))
+	b.WriteString(styleKeys.Render("\n  [←/→] tabs   [↑/↓] select   [Enter] activate   [Q] quit"))
 
 	inner := b.String()
 	return styleBox.Width(width - 4).Render(inner)
@@ -245,14 +259,8 @@ func (m wizardModel) tabs() string {
 func (m wizardModel) deployTab(contentWidth int) string {
 	var b strings.Builder
 	b.WriteString(styleSectionTitle.Render("DEPLOY TARGET") + "\n")
-	if m.target == targetOCI {
-		b.WriteString("  " + dot(green) + " Oracle Cloud Infrastructure (OCI)\n")
-		b.WriteString("  " + circle() + " " + styleDim.Render("Local (on-prem devnet)") + "\n")
-	} else {
-		b.WriteString("  " + circle() + " " + styleDim.Render("Oracle Cloud Infrastructure (OCI)") + "\n")
-		b.WriteString("  " + dot(green) + " Local (on-prem devnet)\n")
-	}
-	b.WriteString(styleDim.Render("  [1] OCI   [2] Local") + "\n\n")
+	b.WriteString(m.optionRow(deployCursorOCI, m.target == targetOCI, "Oracle Cloud Infrastructure", "cloud L1 with OCI VM") + "\n")
+	b.WriteString(m.optionRow(deployCursorLocal, m.target == targetLocal, "Local devnet", "single-machine demo appliance") + "\n\n")
 
 	if m.target == targetOCI {
 		b.WriteString(featureRow("Selected path", "OCI VM + Avalanche L1 + T-REX", contentWidth))
@@ -268,6 +276,8 @@ func (m wizardModel) deployTab(contentWidth int) string {
 	b.WriteString(featureRow("2. Deploy T-REX", "token, registry, KYC issuer", contentWidth))
 	b.WriteString(featureRow("3. Prove KYC gate", "verified succeeds, unknown must revert", contentWidth))
 	b.WriteString(featureRow("4. Evidence", "addresses and tx hashes stay local", contentWidth))
+	b.WriteString("\n")
+	b.WriteString(m.primaryAction())
 	return b.String()
 }
 
@@ -286,6 +296,34 @@ func (m wizardModel) complianceTab(contentWidth int) string {
 	b.WriteString(featureRow("Expected success", "issuer sends tokens to verified wallet", contentWidth))
 	b.WriteString(featureRow("Expected revert", "issuer sends tokens to unknown wallet", contentWidth))
 	return b.String()
+}
+
+func (m wizardModel) optionRow(cursor int, selected bool, label, desc string) string {
+	prefix := "  "
+	marker := circle()
+	if selected {
+		marker = dot(green)
+	}
+	body := fmt.Sprintf("[ %s  %-28s %s ]", marker, label, desc)
+	if m.activeTab == tabDeploy && m.deployCursor == cursor {
+		prefix = styleGreen.Render("› ")
+		body = styleButtonActive.Render(body)
+	} else {
+		body = styleButton.Render(body)
+	}
+	return prefix + body
+}
+
+func (m wizardModel) primaryAction() string {
+	label := "Start deployment"
+	if m.target == targetOCI {
+		label = "Start OCI deployment"
+	}
+	body := styleButton.Render("[ " + label + " ]")
+	if m.activeTab == tabDeploy && m.deployCursor == deployCursorStart {
+		body = styleButtonActive.Render("[ " + label + " ]")
+	}
+	return "  " + body + "\n"
 }
 
 func (m wizardModel) operationsTab() string {
