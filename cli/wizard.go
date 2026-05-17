@@ -61,6 +61,7 @@ const (
 
 const (
 	deployCursorLocal = iota
+	deployCursorCChain
 	deployCursorOCI
 	deployCursorICTT
 	deployCursorStart
@@ -153,6 +154,9 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 			case tabNetworks:
 				if m.deployCursor == deployCursorDashboard {
 					m.action = "Dashboard opens after deployment. Run `claw1 receipt` to open it directly."
+				}
+				if m.deployCursor == deployCursorCChain {
+					m.action = "C-Chain is shown as the production liquidity rail. Deployment is not implemented yet; use ICTT workbench when ready."
 				}
 			case tabExplorer:
 				return m, startExplorer(m.repoRoot)
@@ -283,6 +287,8 @@ func (m *wizardModel) activate() bool {
 	case deployCursorLocal:
 		m.target = targetLocal
 		m.syncFocus()
+	case deployCursorCChain:
+		m.action = "C-Chain is planned as the public liquidity rail. It is visible here to match the production topology, not deployed yet."
 	case deployCursorICTT:
 		m.enableICTT = !m.enableICTT
 	case deployCursorStart:
@@ -357,16 +363,17 @@ func (m wizardModel) networksTab(contentWidth int) string {
 	snap := loadNetworkSnapshot(m.target)
 	b.WriteString(styleSectionTitle.Render("NETWORKS") + "\n")
 	b.WriteString(m.optionRow(deployCursorLocal, m.target == targetLocal, "Developer appliance", "local private L1") + "\n")
+	b.WriteString(m.optionRow(deployCursorCChain, false, "C-Chain liquidity rail", "planned public liquidity endpoint") + "\n")
 	b.WriteString(m.optionRow(deployCursorOCI, m.target == targetOCI, "Production target", "OCI private L1") + "\n")
-	b.WriteString(m.optionRow(deployCursorICTT, m.enableICTT, "ICTT liquidity path", "optional C-chain bridge workbench") + "\n")
+	b.WriteString(m.optionRow(deployCursorICTT, m.enableICTT, "ICTT bridge to C-Chain", "optional bridge workbench") + "\n")
 	b.WriteString(m.optionRow(deployCursorStart, false, "Deploy / reconcile", "apply Terraform + contracts") + "\n")
 	b.WriteString(m.optionRow(deployCursorDashboard, false, "Open dashboard", "post-deploy operations view") + "\n\n")
 
 	if m.target == targetOCI {
-		b.WriteString(featureRow("Selected", "OCI VM + Avalanche L1 + T-REX compliance suite", contentWidth))
+		b.WriteString(featureRow("Selected", "OCI VM + private L1 + T-REX compliance suite", contentWidth))
 		b.WriteString(featureRow("Before deploy", "complete the OCI tab; secrets stay local", contentWidth))
 	} else {
-		b.WriteString(featureRow("Selected", "Avalanche devnet + custom L1 + T-REX", contentWidth))
+		b.WriteString(featureRow("Selected", "local private L1 + T-REX, C-Chain rail planned", contentWidth))
 		b.WriteString(featureRow("Network file", networkPath(targetLocal), contentWidth))
 	}
 	b.WriteString("\n")
@@ -454,6 +461,7 @@ func (m wizardModel) simulateTab(contentWidth int) string {
 	b.WriteString(styleSectionTitle.Render("SIMULATE") + "\n")
 	b.WriteString(featureRow("Tenderly idea", "preview contract behavior before users hit it", contentWidth))
 	b.WriteString(featureRow("Claw1 check", "IdentityRegistry.isVerified(demo investor)", contentWidth))
+	b.WriteString(featureRow("C-Chain check", "planned: simulate bridge receive before sending", contentWidth))
 	if snap.net == nil {
 		b.WriteString("\n  " + dot(yellow) + "  " + styleYellow.Render("Deploy a network first.") + "\n")
 		return b.String()
@@ -486,6 +494,7 @@ func (m wizardModel) monitoringTab(contentWidth int) string {
 	b.WriteString(featureRow("RPC", snap.net.RPCURL, contentWidth))
 	b.WriteString(featureRow("Latest block", block, contentWidth))
 	b.WriteString(featureRow("Explorer", explorer, contentWidth))
+	b.WriteString(featureRow("C-Chain rail", cChainRailStatus(), contentWidth))
 	b.WriteString(featureRow("Tracked contracts", fmt.Sprintf("%d", len(snap.net.Contracts)), contentWidth))
 	b.WriteString(featureRow("Evidence path", filepath.Join(filepath.Dir(networkPath(m.target)), "evidence"), contentWidth))
 	return b.String()
@@ -629,6 +638,13 @@ func walletNonce(rpcURL, address string) string {
 	n := new(big.Int)
 	n.SetString(strings.TrimPrefix(result, "0x"), 16)
 	return n.String()
+}
+
+func cChainRailStatus() string {
+	if os.Getenv("C_CHAIN_RPC_URL") != "" || os.Getenv("C_CHAIN_BLOCKCHAIN_ID") != "" {
+		return "workbench env detected"
+	}
+	return "planned, not deployed"
 }
 
 func simulateKYCRead(target deployTarget) string {

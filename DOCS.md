@@ -242,8 +242,9 @@ En modo programático, un dry-run OCI sin `--yes` termina con código `1` despu�
 
   NETWORKS
   › [ ●  Developer appliance          local private L1 ]
+    [ ○  C-Chain liquidity rail        planned public liquidity endpoint ]
     [ ○  Production target            OCI private L1 ]
-    [ ○  ICTT liquidity path           optional C-chain bridge workbench ]
+    [ ○  ICTT bridge to C-Chain        optional bridge workbench ]
     [ ○  Deploy / reconcile            apply Terraform + contracts ]
     [ ○  Open dashboard                post-deploy operations view ]
 
@@ -254,12 +255,12 @@ En modo programático, un dry-run OCI sin `--yes` termina con código `1` despu�
   │  Contracts             9 tracked
 ```
 
-- **Networks** despliega o reconcilia local/OCI, activa ICTT y abre el dashboard
+- **Networks** despliega o reconcilia local/OCI, muestra C-Chain como rail de liquidez planeado, activa ICTT y abre el dashboard
 - **Explorer** inicia o abre Blockscout
 - **Contracts** navega y copia direcciones desplegadas desde `network.json`
 - **Wallets** muestra balances/nonces y copia direcciones o llave demo local
 - **Simulate** ejecuta una lectura `IdentityRegistry.isVerified(...)`
-- **Monitoring** muestra RPC, bloque, explorer y rutas de evidencia
+- **Monitoring** muestra RPC, bloque, explorer, estado del rail C-Chain y rutas de evidencia
 - **OCI** configura credenciales y shape de producción
 
 ### Pantalla 2: Progreso del despliegue

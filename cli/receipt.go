@@ -292,7 +292,7 @@ func (m receiptModel) overviewView(width int) string {
 	b.WriteString(row("NETWORK", m.net.Name, "CHAIN", fmt.Sprintf("%d", m.net.ChainID)))
 	b.WriteString(row("VALIDATORS", validatorsStr(m.net), "BLOCK", blockStr))
 	if m.target == targetLocal {
-		b.WriteString(row("RAIL", "Developer appliance", "PROD PATH", "OCI multi-node L1"))
+		b.WriteString(row("RAIL", "Developer appliance", "C-CHAIN", "planned liquidity rail"))
 	}
 
 	if m.net.OCI != nil {
@@ -339,7 +339,7 @@ func (m receiptModel) overviewView(width int) string {
 		b.WriteString(styleDim.Render("  C-chain source tx -> Teleporter message -> L1 receive") + "\n")
 	} else {
 		b.WriteString("  " + dot(yellow) + "  " + styleYellow.Render("ICTT workbench pending") + "\n")
-		b.WriteString(styleDim.Render("  Compliance L1 is deployed. Bridge path is separate and can be enabled later.") + "\n")
+		b.WriteString(styleDim.Render("  Compliance L1 is deployed. C-Chain bridge path is visible here but not active yet.") + "\n")
 	}
 
 	// RPC URL (truncated)
