@@ -4,7 +4,7 @@ import "github.com/charmbracelet/lipgloss"
 
 var (
 	green  = lipgloss.Color("#00FF88")
-	dim    = lipgloss.Color("#444444")
+	dim    = lipgloss.Color("#666666")
 	text   = lipgloss.Color("#CCCCCC")
 	yellow = lipgloss.Color("#FFCC00")
 	red    = lipgloss.Color("#FF4444")
@@ -51,6 +51,16 @@ var (
 	styleSectionTitle = lipgloss.NewStyle().
 				Foreground(dim).
 				Bold(true)
+
+	styleTab = lipgloss.NewStyle().
+			Foreground(dim).
+			Padding(0, 2)
+
+	styleTabActive = lipgloss.NewStyle().
+			Foreground(green).
+			Bold(true).
+			Underline(true).
+			Padding(0, 2)
 
 	styleKeys = lipgloss.NewStyle().
 			Foreground(dim).

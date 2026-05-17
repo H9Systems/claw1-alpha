@@ -34,12 +34,21 @@ type deployConfig struct {
 
 type wizardModel struct {
 	target     deployTarget
+	activeTab  int
 	focus      int
 	inputs     []textinput.Model
 	err        string
 	repoRoot   string
 	enableICTT bool
 }
+
+const (
+	tabDeploy = iota
+	tabCompliance
+	tabOperations
+	tabOCI
+	numTabs
+)
 
 const (
 	inTenancy = iota
@@ -88,13 +97,19 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "tab", "down":
-			if m.target == targetOCI {
+		case "tab", "right", "l":
+			m.activeTab = (m.activeTab + 1) % numTabs
+			m.syncFocus()
+		case "shift+tab", "left", "h":
+			m.activeTab = (m.activeTab - 1 + numTabs) % numTabs
+			m.syncFocus()
+		case "down", "j":
+			if m.activeTab == tabOCI && m.target == targetOCI {
 				m.focus = (m.focus + 1) % numInputs
 			}
 			m.syncFocus()
-		case "shift+tab", "up":
-			if m.target == targetOCI {
+		case "up", "k":
+			if m.activeTab == tabOCI && m.target == targetOCI {
 				m.focus = (m.focus - 1 + numInputs) % numInputs
 			}
 			m.syncFocus()
@@ -106,12 +121,19 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 			for i := range m.inputs {
 				m.inputs[i].Blur()
 			}
-		case "i", "I":
-			m.enableICTT = !m.enableICTT
+		case "d":
+			m.activeTab = tabDeploy
+			m.syncFocus()
+		case "c":
+			m.activeTab = tabCompliance
+			m.syncFocus()
+		case "o":
+			m.activeTab = tabOperations
+			m.syncFocus()
 		}
 	}
 
-	if m.target == targetOCI {
+	if m.activeTab == tabOCI && m.target == targetOCI {
 		var cmd tea.Cmd
 		m.inputs[m.focus], cmd = m.inputs[m.focus].Update(msg)
 		return m, cmd
@@ -121,7 +143,7 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 
 func (m *wizardModel) syncFocus() {
 	for i := range m.inputs {
-		if i == m.focus {
+		if m.activeTab == tabOCI && m.target == targetOCI && i == m.focus {
 			m.inputs[i].Focus()
 		} else {
 			m.inputs[i].Blur()
@@ -175,13 +197,53 @@ func (m wizardModel) validate() (deployConfig, error) {
 
 func (m wizardModel) View(width int) string {
 	var b strings.Builder
+	contentWidth := width - 8
+	if contentWidth < 72 {
+		contentWidth = 72
+	}
 
 	// Title
 	b.WriteString(styleHeader.Render("CLAW1") + "  " +
-		styleDim.Render("Compliance TUI") + "\n")
-	b.WriteString(styleDim.Render("  One tool: provision, inspect, transact, preserve evidence, destroy.") + "\n\n")
+		styleDim.Render("Regulated asset appliance") + "\n")
+	b.WriteString(styleValue.Render("  Deploy a permissioned L1 with ERC-3643 transfer controls.") + "\n\n")
+	b.WriteString(m.tabs() + "\n\n")
 
-	// Target selection
+	switch m.activeTab {
+	case tabDeploy:
+		b.WriteString(m.deployTab(contentWidth))
+	case tabCompliance:
+		b.WriteString(m.complianceTab(contentWidth))
+	case tabOperations:
+		b.WriteString(m.operationsTab())
+	case tabOCI:
+		b.WriteString(m.ociTab(contentWidth))
+	}
+
+	if m.err != "" {
+		b.WriteString("\n" + styleRed.Render("  ✗ "+m.err) + "\n")
+	}
+
+	b.WriteString(styleKeys.Render("\n  [Tab/←/→] switch tab   [1] OCI   [2] Local   [D] deploy   [Q] quit"))
+
+	inner := b.String()
+	return styleBox.Width(width - 4).Render(inner)
+}
+
+func (m wizardModel) tabs() string {
+	names := []string{"Deploy", "Compliance", "Operations", "OCI Config"}
+	var parts []string
+	for i, name := range names {
+		if i == m.activeTab {
+			parts = append(parts, styleTabActive.Render("["+name+"]"))
+		} else {
+			parts = append(parts, styleTab.Render(name))
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+func (m wizardModel) deployTab(contentWidth int) string {
+	var b strings.Builder
 	b.WriteString(styleSectionTitle.Render("DEPLOY TARGET") + "\n")
 	if m.target == targetOCI {
 		b.WriteString("  " + dot(green) + " Oracle Cloud Infrastructure (OCI)\n")
@@ -193,70 +255,93 @@ func (m wizardModel) View(width int) string {
 	b.WriteString(styleDim.Render("  [1] OCI   [2] Local") + "\n\n")
 
 	if m.target == targetOCI {
-		b.WriteString(styleSectionTitle.Render("OCI CREDENTIALS") + "\n")
-		b.WriteString(m.inputRow("Tenancy OCID", inTenancy))
-		b.WriteString(m.inputRow("User OCID", inUser))
-		b.WriteString(m.inputRow("Fingerprint", inFingerprint))
-		b.WriteString(m.inputRow("API key path", inKeyPath))
-		b.WriteString("\n")
-		b.WriteString(styleSectionTitle.Render("INFRASTRUCTURE") + "\n")
-		b.WriteString(m.inputRow("Region", inRegion))
-		b.WriteString(m.inputRow("Shape", inShape))
-		b.WriteString(m.inputRow("OCPUs", inOcpus))
-		b.WriteString(m.inputRow("Memory (GB)", inMemory))
-		b.WriteString("\n")
-		b.WriteString(styleSectionTitle.Render("COMPLIANCE SUITE") + "\n")
-		b.WriteString("  " + dot(green) + "  ERC-3643 T-REX    " + styleDim.Render("identity-bound token, KYC claim, ONCHAINID") + "\n")
-		b.WriteString("  " + dot(green) + "  ComplianceRegistry " + styleDim.Render("on-chain KYC / jurisdiction enforcement") + "\n")
-		b.WriteString("\n")
-		b.WriteString(styleSectionTitle.Render("ICTT BRIDGE") + "\n")
-		if m.enableICTT {
-			b.WriteString("  " + dot(green) + " " + styleGreen.Render("Enabled") +
-				styleDim.Render("  C-chain → L1 wrapped-token bridge (Teleporter/Warp)") + "\n")
-			b.WriteString(styleDim.Render("  Requires: scripts/ictt-setup.sh  |  Fuji Teleporter Registry wired") + "\n")
-		} else {
-			b.WriteString("  " + circle() + " " + styleDim.Render("Disabled  (press [I] to enable)") + "\n")
-		}
+		b.WriteString(featureRow("Selected path", "OCI VM + Avalanche L1 + T-REX", contentWidth))
+		b.WriteString(featureRow("Before deploy", "fill the OCI Config tab", contentWidth))
 	} else {
-		b.WriteString(styleGreen.Render("  Developer appliance mode — single VM, local primary network + custom L1.\n"))
-		b.WriteString(styleDim.Render("  Production target: multi-node, multi-VM, hardened keys, RBAC, signed evidence, SLAs.\n"))
-		b.WriteString(styleValue.Render("  Requires: forge, avalanche-cli, terraform, docker, jq\n"))
-		b.WriteString("\n")
-		b.WriteString(styleSectionTitle.Render("REGULATORY PRESET") + "\n")
-		b.WriteString("  " + dot(green) + "  CNBV-style regulated asset " + styleDim.Render("TxAllowList + KYC claim + ERC-3643") + "\n")
-		b.WriteString("\n")
-		b.WriteString(styleSectionTitle.Render("COMPLIANCE SUITE") + "\n")
-		b.WriteString("  " + dot(green) + "  ERC-3643 T-REX    " + styleDim.Render("identity-bound token, KYC claim, ONCHAINID") + "\n")
-		b.WriteString("  " + dot(green) + "  ComplianceRegistry " + styleDim.Render("on-chain KYC / jurisdiction enforcement") + "\n")
-		b.WriteString("\n")
-		b.WriteString(styleSectionTitle.Render("ICTT BRIDGE") + "\n")
-		if m.enableICTT {
-			b.WriteString("  " + dot(green) + " " + styleGreen.Render("Enabled") +
-				styleDim.Render("  local C-chain → custom L1 bridge workbench") + "\n")
-			b.WriteString(styleDim.Render("  Requires: scripts/ictt-setup.sh and local Teleporter registry env when not auto-detectable") + "\n")
-		} else {
-			b.WriteString("  " + circle() + " " + styleDim.Render("Disabled  (press [I] to enable bridge-first demo)") + "\n")
-		}
+		b.WriteString(featureRow("Selected path", "Avalanche devnet + custom L1", contentWidth))
+		b.WriteString(featureRow("OCI adds", "multi-node infra, hardened keys, RBAC", contentWidth))
 	}
 
-	if m.err != "" {
-		b.WriteString("\n" + styleRed.Render("  ✗ "+m.err) + "\n")
-	}
+	b.WriteString("\n")
+	b.WriteString(styleSectionTitle.Render("WHAT DEPLOY DOES") + "\n")
+	b.WriteString(featureRow("1. Provision L1", "Terraform creates the Avalanche L1", contentWidth))
+	b.WriteString(featureRow("2. Deploy T-REX", "token, registry, KYC issuer", contentWidth))
+	b.WriteString(featureRow("3. Prove KYC gate", "verified succeeds, unknown must revert", contentWidth))
+	b.WriteString(featureRow("4. Evidence", "addresses and tx hashes stay local", contentWidth))
+	return b.String()
+}
 
-	b.WriteString("\n" + styleSectionTitle.Render("SCRIPTABLE OPERATIONS") + "\n")
-	b.WriteString(styleDim.Render("  deploy:   claw1 deploy --local [--json]  |  claw1 deploy --oci --yes [--json]") + "\n")
-	b.WriteString(styleDim.Render("  destroy:  claw1 destroy --local [--json] |  claw1 destroy --oci --dry-run") + "\n")
+func (m wizardModel) complianceTab(contentWidth int) string {
+	var b strings.Builder
+	b.WriteString(styleSectionTitle.Render("REGULATORY PRESET") + "\n")
+	b.WriteString(featureRow("CNBV-style asset", "TxAllowList + KYC claim + ERC-3643", contentWidth))
+	b.WriteString("\n")
+	b.WriteString(styleSectionTitle.Render("COMPLIANCE SUITE") + "\n")
+	b.WriteString(featureRow("ERC-3643 T-REX", "identity-bound token, KYC claim", contentWidth))
+	b.WriteString(featureRow("IdentityRegistry", "verified wallets can receive tokens", contentWidth))
+	b.WriteString(featureRow("ClaimIssuer", "demo KYC authority for investor claims", contentWidth))
+	b.WriteString(featureRow("ComplianceRegistry", "KYC and jurisdiction evidence", contentWidth))
+	b.WriteString("\n")
+	b.WriteString(styleSectionTitle.Render("DEMO CHECK") + "\n")
+	b.WriteString(featureRow("Expected success", "issuer sends tokens to verified wallet", contentWidth))
+	b.WriteString(featureRow("Expected revert", "issuer sends tokens to unknown wallet", contentWidth))
+	return b.String()
+}
+
+func (m wizardModel) operationsTab() string {
+	var b strings.Builder
+	b.WriteString(styleSectionTitle.Render("SCRIPTABLE OPERATIONS") + "\n")
+	b.WriteString(styleDim.Render("  local:    claw1 deploy --local [--json]") + "\n")
+	b.WriteString(styleDim.Render("            claw1 destroy --local [--json]") + "\n")
+	b.WriteString(styleDim.Render("  oci:      claw1 deploy --oci --yes [--json]") + "\n")
+	b.WriteString(styleDim.Render("            claw1 destroy --oci --dry-run") + "\n")
 	b.WriteString(styleDim.Render("  inspect:  claw1 inspect --local [--json]") + "\n")
 	b.WriteString(styleDim.Render("  wallets:  claw1 wallet list [--json]") + "\n")
+	b.WriteString("\n")
+	b.WriteString(styleSectionTitle.Render("DEMO RESET") + "\n")
+	b.WriteString(styleDim.Render("  scripts/reset.sh") + "\n")
+	b.WriteString(styleDim.Render("  Demo state stays in ~/.claw1/{name}/network.json") + "\n")
+	return b.String()
+}
 
-	keys := "  [Tab] next field   [I] toggle ICTT   [D] deploy   [Q] quit"
-	if m.target == targetOCI {
-		keys = "  [Tab] next field   [I] toggle ICTT   [D] deploy   [Q] quit"
+func (m wizardModel) ociTab(contentWidth int) string {
+	var b strings.Builder
+	if m.target != targetOCI {
+		b.WriteString(styleSectionTitle.Render("OCI CONFIG") + "\n")
+		b.WriteString(styleDim.Render("  Current target is Local. Press [1] to configure OCI deployment.\n"))
+		b.WriteString("\n")
+		b.WriteString(styleSectionTitle.Render("LOCAL REQUIREMENTS") + "\n")
+		b.WriteString(featureRow("forge", "build and deploy contracts", contentWidth))
+		b.WriteString(featureRow("avalanche-cli", "start the local network and L1", contentWidth))
+		b.WriteString(featureRow("terraform", "declare and apply infrastructure", contentWidth))
+		b.WriteString(featureRow("docker + jq", "support scripts and local tooling", contentWidth))
+		return b.String()
 	}
-	b.WriteString(styleKeys.Render("\n" + keys))
 
-	inner := b.String()
-	return styleBox.Width(width - 4).Render(inner)
+	b.WriteString(styleSectionTitle.Render("OCI CREDENTIALS") + "\n")
+	b.WriteString(m.inputRow("Tenancy OCID", inTenancy))
+	b.WriteString(m.inputRow("User OCID", inUser))
+	b.WriteString(m.inputRow("Fingerprint", inFingerprint))
+	b.WriteString(m.inputRow("API key path", inKeyPath))
+	b.WriteString("\n")
+	b.WriteString(styleSectionTitle.Render("INFRASTRUCTURE") + "\n")
+	b.WriteString(m.inputRow("Region", inRegion))
+	b.WriteString(m.inputRow("Shape", inShape))
+	b.WriteString(m.inputRow("OCPUs", inOcpus))
+	b.WriteString(m.inputRow("Memory (GB)", inMemory))
+	b.WriteString(styleDim.Render("\n  [↑/↓] move field. Secrets are read locally, not written to evidence.\n"))
+	return b.String()
+}
+
+func featureRow(label, value string, width int) string {
+	labelWidth := 22
+	valueWidth := width - labelWidth - 8
+	if valueWidth < 32 {
+		valueWidth = 32
+	}
+	return "  " + dot(green) + "  " +
+		styleValue.Width(labelWidth).Render(label) +
+		styleDim.Width(valueWidth).Render(value) + "\n"
 }
 
 func (m wizardModel) inputRow(label string, idx int) string {

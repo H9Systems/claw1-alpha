@@ -232,29 +232,32 @@ En modo programático, un dry-run OCI sin `--yes` termina con código `1` despu�
 
 **Estado actual:** el spine programático ya existe y genera evidencia local + inventario Terraform. Si `oci` CLI está instalado, también ejecuta una búsqueda directa OCI por recursos `claw1`. La reparación OCI por tipo de recurso es la siguiente etapa de hardening; por ahora, si algo queda, el comando falla cerrado y muestra comandos manuales.
 
-### Pantalla 1: Asistente
+### Pantalla 1: Asistente con pestañas
 
 ```
-  CLAW1  Compliance Deploy Wizard
+  CLAW1  Regulated asset appliance
+  Deploy a permissioned L1 with ERC-3643 transfer controls.
+
+  [Deploy]    Compliance    Operations    OCI Config
 
   DEPLOY TARGET
   ○ Oracle Cloud Infrastructure (OCI)
   ● Local (on-prem devnet)
   [1] OCI   [2] Local
 
-  REGULATORY PRESET
-  ● CNBV-style regulated asset
+  WHAT DEPLOY DOES
+  ● 1. Provision L1       Terraform creates the Avalanche L1
+  ● 2. Deploy T-REX       token, registry, KYC issuer
+  ● 3. Prove KYC gate     verified succeeds, unknown must revert
+  ● 4. Evidence           addresses and tx hashes stay local
 
-  ICTT BRIDGE
-  ○ Disabled  (press [I] to enable bridge-first demo)
-
-  [Tab] next field   [I] toggle ICTT   [D] deploy   [Q] quit
+  [Tab/←/→] switch tab   [1] OCI   [2] Local   [D] deploy   [Q] quit
 ```
 
-- **[1]** selecciona OCI — muestra formulario de credenciales
+- **[Tab]** / **[←→]** cambia entre Deploy, Compliance, Operations y OCI Config
+- **[1]** selecciona OCI — usa la pestaña OCI Config para credenciales
 - **[2]** selecciona Local — no se necesitan credenciales
-- **[I]** habilita el workbench ICTT para intentar TokenHome/TokenRemote local
-- **[Tab]** / **[↑↓]** navega entre campos
+- **[↑↓]** navega campos OCI cuando la pestaña OCI Config está activa
 - **[D]** valida y comienza el despliegue
 
 ### Pantalla 2: Progreso del despliegue
