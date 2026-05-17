@@ -29,3 +29,12 @@ claw1 destroy --oci --yes --json
 ./run.sh          # local
 ./run.sh --oci    # OCI
 ```
+
+## Documentación
+
+- [`DOCS.md`](DOCS.md) — Guía completa de operación: prerequisitos, despliegue local/OCI, TUI, variables de entorno, troubleshooting
+- [`LEGAL.md`](LEGAL.md) — Contexto regulatorio: FATF/GAFI, CNBV, SMV, SFC, CVM
+- [`BIZ.md`](BIZ.md) — Modelo de negocio, ICP y panorama competitivo
+- [`GTM.md`](GTM.md) — Go-to-market: posicionamiento, secuencia de lanzamiento y métricas
+- [`PITCH.md`](PITCH.md) — Deck del producto
+- [`CLAUDE.md`](CLAUDE.md) — Convenciones del repo para agentes de IA
