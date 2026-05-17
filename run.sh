@@ -30,7 +30,7 @@ set -euo pipefail
 
 REPO_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || (cd "$(dirname "$0")" && pwd))"
 TF_DIR="$REPO_ROOT/terraform"
-PROVIDER_DIR="$REPO_ROOT/terraform-provider-claw1"
+PROVIDER_DIR="$REPO_ROOT/terraform/providers/terraform-provider-claw1"
 
 CLAW1_NAME="${CLAW1_NAME:-claw1demobank}"
 NETWORK_JSON="${CLAW1_DATA_DIR:-$HOME/.claw1}/$CLAW1_NAME/network.json"

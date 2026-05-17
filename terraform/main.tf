@@ -1,7 +1,7 @@
 terraform {
   required_providers {
     claw1 = {
-      # local dev: install via `make install` (from terraform-provider-claw1/) before terraform init
+      # local dev: install via `make install` (from terraform/providers/terraform-provider-claw1/) before terraform init
       # post-hackathon: change to source = "h9-systems/claw1"
       source  = "local/h9-systems/claw1"
       version = "~> 0.1"

@@ -600,7 +600,7 @@ type ociNetMeta struct {
 
 func (m *deployModel) runLocal() {
 	m.advCh <- 0
-	providerDir := filepath.Join(m.cfg.repoRoot, "terraform-provider-claw1")
+	providerDir := filepath.Join(m.cfg.repoRoot, "terraform", "providers", "terraform-provider-claw1")
 	if err := m.runCmd(providerDir, "make", "install"); err != nil {
 		m.logCh <- "[make] install failed: " + err.Error()
 		close(m.logCh)
