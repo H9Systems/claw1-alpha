@@ -28,6 +28,8 @@ function parsePitch(markdown: string): Slide[] {
       continue
     }
     if (line.startsWith('# ')) {
+      if (current) parsed.push(current)
+      current = { title: line.replace(/^#\s+/, ''), body: [] }
       continue
     }
     if (!current) {
@@ -49,6 +51,56 @@ function SlideTitle({ text }: { text: string }) {
         <span className="text-claw-red">1</span>
       </>
     )
+  }
+  // Style any "Claw1" or "L1" occurrences within a longer title
+  if (text.includes('Claw1') || text.includes('L1')) {
+    const parts = text.split(/(Claw1|L1)/)
+    const renderParts = () =>
+      parts.map((part, i) => {
+        if (part === 'Claw1') {
+          return (
+            <span key={i}>
+              <span className="text-claw-orange">Claw</span>
+              <span className="text-claw-red">1</span>
+            </span>
+          )
+        }
+        if (part === 'L1') {
+          return (
+            <span key={i} className="text-claw-red">L1</span>
+          )
+        }
+        return <span key={i}>{part}</span>
+      })
+    // First slide: break after first word
+    if (text.startsWith('Despliega')) {
+      const [, afterDespliega] = text.split('Despliega ')
+      const restParts = afterDespliega.split(/(Claw1|L1)/)
+      const renderRest = () =>
+        restParts.map((part, i) => {
+          if (part === 'Claw1') {
+            return (
+              <span key={i} className="group/claw1">
+                <span className="text-claw-orange group-hover:text-ink-muted group-hover/claw1:!text-claw-orange transition-colors">Claw</span>
+                <span className="text-claw-red group-hover:text-ink-muted group-hover/claw1:!text-claw-red transition-colors">1</span>
+              </span>
+            )
+          }
+          if (part === 'L1') {
+            return (
+              <span key={i} className="text-claw-red">L1</span>
+            )
+          }
+          return <span key={i} className="group-hover:text-ink-muted transition-colors">{part}</span>
+        })
+      return (
+        <>
+          <div className="text-claw-red group-hover:text-ink-muted transition-colors">DESPLIEG<span className="relative inline-flex items-center justify-center" style={{ width: '0.7em' }}><span className="opacity-0">A</span><svg className="absolute group-hover:fill-[#d42020] transition-colors" style={{ top: '0.17em', left: '0.08em', width: '0.7em', height: '0.7em' }} viewBox="1 1 14 14" fill="#d42020"><polygon points="8,1 15,15 1,15"/></svg></span> </div>
+          <div className="mt-4 sm:mt-8">{renderRest()}</div>
+        </>
+      )
+    }
+    return <>{renderParts()}</>
   }
   return <>{text}</>
 }
@@ -116,7 +168,7 @@ function SlideBody({ body }: { body: string[] }) {
     blocks.push(
       <ul key={`list-${blocks.length}`} className="grid gap-3 max-w-[880px] m-0 p-0 list-none">
         {list.map((item, i) => (
-          <li key={i} className="flex items-start gap-3 max-w-[820px] m-0 text-[clamp(16px,2vw,28px)] leading-[1.35]">
+          <li key={i} className="flex items-start gap-2 sm:gap-3 max-w-[820px] m-0 text-[clamp(14px,3.5vw,28px)] leading-[1.35]">
             <span className="inline-block w-2 h-2 mt-[0.45em] shrink-0 bg-accent rounded-none" />
             <span>{renderInline(item.replace(/^-\s+/, ''))}</span>
           </li>
@@ -158,7 +210,7 @@ function SlideBody({ body }: { body: string[] }) {
     }
 
     blocks.push(
-      <p key={`p-${index}`} className="max-w-[820px] m-0 text-[clamp(16px,2vw,28px)] leading-[1.35]">
+      <p key={`p-${index}`} className="max-w-[820px] m-0 text-[clamp(14px,3.5vw,28px)] leading-[1.35]">
         {renderInline(line)}
       </p>,
     )
@@ -172,6 +224,7 @@ function SlideBody({ body }: { body: string[] }) {
 function Deck() {
   const [current, setCurrent] = useState(0)
   const trackRef = useRef<HTMLDivElement>(null)
+  const touchStart = useRef<{ x: number; y: number } | null>(null)
 
   const go = useCallback(
     (dir: 1 | -1) => {
@@ -195,28 +248,56 @@ function Deck() {
     return () => window.removeEventListener('keydown', onKey)
   }, [go])
 
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const touch = e.touches[0]
+    touchStart.current = { x: touch.clientX, y: touch.clientY }
+  }
+
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart.current) return
+    const touch = e.changedTouches[0]
+    const dx = touch.clientX - touchStart.current.x
+    const dy = touch.clientY - touchStart.current.y
+    touchStart.current = null
+    if (Math.abs(dx) > Math.abs(dy) && Math.abs(dx) > 40) {
+      go(dx < 0 ? 1 : -1)
+    }
+  }
+
   return (
     <div className="fixed inset-0 overflow-hidden bg-bg">
-      {/* Persistent wordmark */}
-      <div className="fixed top-5 left-8 z-10 text-[28px] font-extrabold tracking-tight select-none">
-        <span className="text-claw-orange">Claw</span>
-        <span className="text-claw-red">1</span>
-      </div>
+      <a href="https://github.com/H9Systems/claw1-alpha" target="_blank" rel="noopener noreferrer" className="fixed top-3 left-4 sm:top-5 sm:left-8 z-10 flex items-baseline gap-2 sm:gap-3 select-none no-underline hover:opacity-80 transition-opacity">
+        <span className="text-[22px] sm:text-[42px] font-extrabold tracking-tight">
+          <span className="text-claw-green">H9</span><span className="text-ink-muted"> Systems</span>
+        </span>
+        <span className="text-[22px] sm:text-[42px] font-extrabold tracking-tight text-ink-muted">/</span>
+        <span className="text-[22px] sm:text-[42px] font-extrabold tracking-tight">
+          <span className="text-claw-orange">Claw</span><span className="text-claw-red">1</span>
+        </span>
+      </a>
 
       {/* Horizontal slide track */}
       <div
         ref={trackRef}
         className="flex h-full"
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
         style={{ transform: `translateX(-${current * 100}vw)`, transition: 'transform 0.45s cubic-bezier(0.4,0,0.2,1)' }}
       >
         {slides.map((slide, index) => (
           <section
             key={slide.title}
-            className="shrink-0 w-screen h-full flex flex-col justify-center px-[clamp(32px,8vw,120px)] py-12 overflow-y-auto"
+            className="shrink-0 w-screen h-full flex flex-col justify-center px-5 sm:px-[clamp(32px,8vw,120px)] py-16 sm:py-12 overflow-y-auto"
           >
-            <div className="max-w-[960px] mx-auto w-full flex flex-col gap-5">
-              <h1 className="m-0 text-ink text-[clamp(36px,6vw,80px)] leading-[0.95] tracking-tight font-extrabold">
-                <SlideTitle text={slide.title} />
+            <div className={`max-w-[960px] mx-auto w-full flex flex-col gap-5${index === 0 ? ' items-center text-center' : ''}`}>
+              <h1 className="m-0 text-accent text-[clamp(28px,7vw,80px)] sm:text-[clamp(36px,6vw,80px)] leading-[0.95] tracking-tight font-extrabold">
+                {index === 0 ? (
+                  <a href="https://github.com/H9Systems/claw1-alpha" target="_blank" rel="noopener noreferrer" className="group text-ink no-underline hover:text-ink-muted transition-colors">
+                    <SlideTitle text={slide.title} />
+                  </a>
+                ) : (
+                  <SlideTitle text={slide.title} />
+                )}
               </h1>
               <SlideBody body={slide.body} />
             </div>
@@ -225,7 +306,7 @@ function Deck() {
       </div>
 
       {/* Bottom bar: slide counter + dots + arrow hint */}
-      <div className="fixed bottom-0 left-0 right-0 flex items-center justify-between px-8 py-4 text-ink-muted text-[13px] select-none">
+      <div className="fixed bottom-0 left-0 right-0 flex items-center justify-between px-4 sm:px-8 py-3 sm:py-4 text-ink-muted text-[11px] sm:text-[13px] select-none">
         <span className="tabular-nums font-mono">
           {String(current + 1).padStart(2, '0')}
           <span className="text-rule"> / </span>
@@ -247,7 +328,7 @@ function Deck() {
           ))}
         </div>
 
-        <span className="font-mono text-rule">
+        <span className="font-mono text-rule hidden sm:inline">
           ← →
         </span>
       </div>

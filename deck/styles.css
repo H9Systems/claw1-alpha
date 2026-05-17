@@ -1,13 +1,17 @@
 @import "tailwindcss";
 
+/* Swipe-friendly on mobile */
+html, body { touch-action: pan-x; }
+
 @theme {
   --color-bg: #0c0f0a;
   --color-bg-slide: #111410;
   --color-ink: #e8e6e1;
   --color-ink-muted: #8a8880;
   --color-rule: #2a2e26;
-  --color-claw-orange: #c9431a;
+  --color-claw-orange: #c9351a;
   --color-claw-red: #d42020;
+  --color-claw-green: #3dba4a;
   --color-accent: #3dba4a;
   --color-code-bg: #1a1e17;
   --color-code-border: #2f3529;
