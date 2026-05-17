@@ -2,13 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -168,16 +171,25 @@ func runUpgradeCLI(repoRoot string, args []string) int {
 		Message: fmt.Sprintf("replacing %s", exePath),
 	})
 	if err := replaceBinary(exePath, tmpFile); err != nil {
+		if !isPermissionError(err) {
+			sink.emit(workflowEvent{
+				RunID: runID, Workflow: "upgrade", Step: "replace", Status: "failed_closed",
+				ErrorCode: "replace_error", Message: err.Error(),
+			})
+			return 1
+		}
+		// Escalate with sudo
 		sink.emit(workflowEvent{
-			RunID: runID, Workflow: "upgrade", Step: "replace", Status: "failed_closed",
-			ErrorCode: "replace_error", Message: err.Error(),
+			RunID: runID, Workflow: "upgrade", Step: "replace", Status: "running",
+			Message: fmt.Sprintf("permission denied — elevating with sudo"),
 		})
-		// Provide remediation hint
-		sink.emit(workflowEvent{
-			RunID: runID, Workflow: "upgrade", Step: "remediation", Status: "running",
-			Message: fmt.Sprintf("manual fallback: mv %s %s", tmpFile, exePath),
-		})
-		return 1
+		if err := replaceBinarySudo(exePath, tmpFile); err != nil {
+			sink.emit(workflowEvent{
+				RunID: runID, Workflow: "upgrade", Step: "replace", Status: "failed_closed",
+				ErrorCode: "sudo_replace_error", Message: err.Error(),
+			})
+			return 1
+		}
 	}
 
 	sink.emit(workflowEvent{
@@ -317,6 +329,37 @@ func replaceBinary(dst, src string) error {
 	}
 	if err := out.Sync(); err != nil {
 		return fmt.Errorf("sync: %w", err)
+	}
+	return nil
+}
+
+func isPermissionError(err error) bool {
+	if os.IsPermission(err) {
+		return true
+	}
+	var pathErr *os.PathError
+	if errors.As(err, &pathErr) && errors.Is(pathErr.Err, syscall.EACCES) {
+		return true
+	}
+	// replaceBinary wraps errors with fmt.Errorf; unwrap through those.
+	var inner error = err
+	for inner != nil {
+		if os.IsPermission(inner) {
+			return true
+		}
+		inner = errors.Unwrap(inner)
+	}
+	return false
+}
+
+func replaceBinarySudo(dst, src string) error {
+	// Use install(1) — atomic copy + chmod in one call.
+	cmd := exec.Command("sudo", "install", "-m", "0755", src, dst)
+	cmd.Stdin = os.Stdin
+	cmd.Stdout = os.Stderr
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("sudo install: %w", err)
 	}
 	return nil
 }
