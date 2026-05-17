@@ -56,10 +56,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.KeyMsg:
 		switch msg.String() {
-		case "ctrl+c", "q", "Q":
-			if m.page != pageDeploy {
-				return m, tea.Quit
-			}
+		case "ctrl+c", "esc", "q", "Q":
+			return m, tea.Quit
 		case "enter":
 			if m.page == pageWizard && m.wizard.activate() {
 				cfg, err := m.wizard.validate()

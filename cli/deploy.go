@@ -218,7 +218,11 @@ func (m deployModel) View(width int) string {
 		b.WriteString("\n" + styleGreen.Render("  ✓ Deployment complete — press Enter to view Sovereignty Receipt") + "\n")
 	}
 
-	b.WriteString(styleKeys.Render("\n  [Q] quit"))
+	if m.err != nil {
+		b.WriteString(styleKeys.Render("\n  [Q/Esc] exit   Run scripts/reset.sh before retrying if Terraform state looks stale"))
+	} else {
+		b.WriteString(styleKeys.Render("\n  [Q/Esc] exit"))
+	}
 
 	return styleBox.Width(width - 4).Render(b.String())
 }
