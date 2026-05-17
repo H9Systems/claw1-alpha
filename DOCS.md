@@ -256,7 +256,7 @@ En modo programático, un dry-run OCI sin `--yes` termina con código `1` despu�
 ```
 
 - **Networks** despliega o reconcilia local/OCI, muestra C-Chain como rail de liquidez planeado, activa ICTT y abre el dashboard
-- **Explorer** inicia o abre Blockscout
+- **Explorer** muestra bloques y transacciones recientes desde el RPC de la L1, sin depender de Blockscout
 - **Contracts** navega y copia direcciones desplegadas desde `network.json`
 - **Wallets** muestra balances/nonces y copia direcciones o llave demo local
 - **Simulate** ejecuta una lectura `IdentityRegistry.isVerified(...)`
@@ -298,7 +298,7 @@ claw1 receipt          # local
 claw1 receipt --oci    # OCI
 ```
 
-- **Explorer**: muestra estado de Blockscout y permite iniciarlo con **S** u abrirlo con **O**
+- **Explorer**: explorador embebido con bloque más reciente, bloques recientes, conteo de txs y hashes
 - **Contracts**: lista todas las direcciones guardadas en `network.json`
 - **Wallets**: lista wallets demo y permite copiar dirección o llave demo local
 

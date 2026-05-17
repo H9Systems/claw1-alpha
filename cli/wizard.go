@@ -159,7 +159,7 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 					m.action = "C-Chain is shown as the production liquidity rail. Deployment is not implemented yet; use ICTT workbench when ready."
 				}
 			case tabExplorer:
-				return m, startExplorer(m.repoRoot)
+				m.action = "Explorer refreshed from selected L1 RPC."
 			case tabContracts:
 				snap := loadNetworkSnapshot(m.target)
 				if len(snap.contracts) > 0 {
@@ -175,11 +175,11 @@ func (m wizardModel) Update(msg tea.Msg) (wizardModel, tea.Cmd) {
 			}
 		case "s", "S":
 			if m.activeTab == tabExplorer {
-				return m, startExplorer(m.repoRoot)
+				m.action = "Explorer refreshed from selected L1 RPC."
 			}
 		case "o", "O":
 			if m.activeTab == tabExplorer {
-				return m, openExplorer()
+				m.action = "Embedded explorer uses the selected L1 RPC. No external explorer is required."
 			}
 		case "a", "A":
 			if m.activeTab == tabContracts {
@@ -312,7 +312,7 @@ func (m wizardModel) View(width int) string {
 		styleHeader.Render("PRIVATE L1 CONTROL PLANE") + "  " +
 		styleDim.Render("open-core stack for regulated Avalanche deployments") + "\n")
 	b.WriteString(styleKicker.Render("  Ship a sovereign chain with compliance, observability, and evidence in one run.") + "\n")
-	b.WriteString(styleDim.Render("  Not a block explorer. Not a script pile. The appliance teams expected Alchemy to be for private L1s.") + "\n\n")
+	b.WriteString(styleDim.Render("  Embedded RPC explorer, contracts, wallets, simulations, monitoring, and deploy controls.") + "\n\n")
 	b.WriteString(m.tabs() + "\n\n")
 
 	switch m.activeTab {
@@ -391,19 +391,31 @@ func (m wizardModel) networksTab(contentWidth int) string {
 
 func (m wizardModel) explorerTab(contentWidth int) string {
 	var b strings.Builder
-	status := styleRed.Render("offline")
-	if explorerHealthy() {
-		status = styleGreen.Render("online")
+	x := loadExplorerSnapshot(m.target, 6)
+	b.WriteString(styleSectionTitle.Render("EMBEDDED EXPLORER") + "\n")
+	if x.Err != "" {
+		b.WriteString("  " + dot(red) + "  " + styleRed.Render(x.Err) + "\n")
+		b.WriteString(styleDim.Render("  Deploy or reconnect the selected private L1, then return here.") + "\n")
+		return b.String()
 	}
-	b.WriteString(styleSectionTitle.Render("EXPLORER") + "\n")
-	b.WriteString(featureRow("Blockscout UI", "http://localhost:3001", contentWidth))
-	b.WriteString(featureRow("Backend API", "http://localhost:4000", contentWidth))
-	b.WriteString(featureRow("Status", status, contentWidth))
-	b.WriteString("\n")
-	b.WriteString(styleSectionTitle.Render("ACTIONS") + "\n")
-	b.WriteString(actionRow(true, "Start explorer", "Enter or S", "docker compose up Blockscout") + "\n")
-	b.WriteString(actionRow(false, "Open explorer", "O", "launch http://localhost:3001") + "\n")
-	b.WriteString(actionRow(false, "Address deep links", "Contracts tab", "copy contract address for lookup") + "\n")
+	b.WriteString(featureRow("Latest block", x.BlockHeight, contentWidth))
+	b.WriteString(featureRow("Source", "direct JSON-RPC from selected L1", contentWidth))
+	b.WriteString("\n" + styleSectionTitle.Render("RECENT BLOCKS") + "\n")
+	for _, block := range x.Blocks {
+		hash := shortAddr(block.Hash)
+		b.WriteString("  " + styleKicker.Render("#"+fmt.Sprintf("%-8s", block.Number)) +
+			styleValue.Render(fmt.Sprintf(" tx %-3d gas %-10s ", block.TxCount, block.GasUsed)) +
+			styleDim.Render(block.Timestamp+"  "+hash) + "\n")
+		if len(block.Transactions) > 0 {
+			for i, tx := range block.Transactions {
+				if i >= 2 {
+					b.WriteString(styleDim.Render("             ...") + "\n")
+					break
+				}
+				b.WriteString(styleDim.Render("             tx "+shortAddr(tx)) + "\n")
+			}
+		}
+	}
 	return b.String()
 }
 
@@ -459,8 +471,8 @@ func (m wizardModel) simulateTab(contentWidth int) string {
 	var b strings.Builder
 	snap := loadNetworkSnapshot(m.target)
 	b.WriteString(styleSectionTitle.Render("SIMULATE") + "\n")
-	b.WriteString(featureRow("Tenderly idea", "preview contract behavior before users hit it", contentWidth))
-	b.WriteString(featureRow("Claw1 check", "IdentityRegistry.isVerified(demo investor)", contentWidth))
+	b.WriteString(featureRow("Purpose", "preview contract behavior before users hit it", contentWidth))
+	b.WriteString(featureRow("Current check", "IdentityRegistry.isVerified(demo investor)", contentWidth))
 	b.WriteString(featureRow("C-Chain check", "planned: simulate bridge receive before sending", contentWidth))
 	if snap.net == nil {
 		b.WriteString("\n  " + dot(yellow) + "  " + styleYellow.Render("Deploy a network first.") + "\n")

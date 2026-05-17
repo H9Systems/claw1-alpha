@@ -354,20 +354,29 @@ func (m receiptModel) overviewView(width int) string {
 
 func (m receiptModel) explorerView() string {
 	var b strings.Builder
-	status := dot(red) + " " + styleRed.Render("OFFLINE")
-	if explorerHealthy() {
-		status = dot(green) + " " + styleGreen.Render("ONLINE")
+	x := loadExplorerSnapshot(m.target, 6)
+	b.WriteString(styleSectionTitle.Render("EMBEDDED EXPLORER") + "\n")
+	if x.Err != "" {
+		b.WriteString("  " + dot(red) + "  " + styleRed.Render(x.Err) + "\n")
+		return b.String()
 	}
-	b.WriteString(styleSectionTitle.Render("BLOCK EXPLORER") + "\n")
-	b.WriteString(row("Blockscout UI", "http://localhost:3001", "STATUS", status))
-	b.WriteString(row("Backend API", "http://localhost:4000", "Purpose", "generic chain inspection"))
-	b.WriteString("\n")
-	b.WriteString(styleSectionTitle.Render("ACTIONS") + "\n")
-	b.WriteString("  " + styleButtonActive.Render("[ S  Start Blockscout ]") + "\n")
-	b.WriteString("  " + styleButton.Render("[ O  Open explorer ]") + "\n")
-	b.WriteString("\n")
-	b.WriteString(styleDim.Render("  The Claw1 dashboard is the critical path. Blockscout is optional generic inspection.") + "\n")
-	b.WriteString(styleKeys.Render("\n  [S] start   [O] open   [←/→] tabs"))
+	b.WriteString(row("LATEST BLOCK", x.BlockHeight, "SOURCE", "direct RPC"))
+	b.WriteString("\n" + styleSectionTitle.Render("RECENT BLOCKS") + "\n")
+	for _, block := range x.Blocks {
+		b.WriteString("  " + styleKicker.Render("#"+fmt.Sprintf("%-8s", block.Number)) +
+			styleValue.Render(fmt.Sprintf(" tx %-3d gas %-10s ", block.TxCount, block.GasUsed)) +
+			styleDim.Render(block.Timestamp+"  "+shortAddr(block.Hash)) + "\n")
+		if len(block.Transactions) > 0 {
+			for i, tx := range block.Transactions {
+				if i >= 2 {
+					b.WriteString(styleDim.Render("             ...") + "\n")
+					break
+				}
+				b.WriteString(styleDim.Render("             tx "+shortAddr(tx)) + "\n")
+			}
+		}
+	}
+	b.WriteString(styleKeys.Render("\n  [←/→] tabs   [C] copy RPC"))
 	return b.String()
 }
 
